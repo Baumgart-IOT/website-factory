@@ -1,0 +1,17 @@
+{
+  "name": "website-factory-mvp",
+  "version": "0.1.0",
+  "description": "MVP architecture for a Website Factory system with JSON-backed site configuration and mock build previews.",
+  "type": "module",
+  "scripts": {
+    "dev": "node src/server/index.js",
+    "start": "node src/server/index.js",
+    "validate": "node src/server/scripts/validate-data.js",
+    "validate:data": "node src/server/scripts/validate-data.js",
+    "smoke:phase2": "node src/server/scripts/smoke-phase2.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "UNLICENSED"
+}

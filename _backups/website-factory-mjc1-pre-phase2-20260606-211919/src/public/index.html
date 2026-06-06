@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Website Factory MVP</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <aside class="sidebar" aria-label="Project list">
+        <div class="brand-block">
+          <p class="eyebrow">Factory Console</p>
+          <h1>Website Factory</h1>
+        </div>
+        <button id="newProjectButton" class="primary-action" type="button">New Project</button>
+        <div class="project-list-header">
+          <span>Projects</span>
+          <span id="projectCount">0</span>
+        </div>
+        <div id="projectList" class="project-list"></div>
+      </aside>
+
+      <section class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">MVP Orchestrator</p>
+            <h2 id="workspaceTitle">Create a website project</h2>
+          </div>
+          <div class="status-strip" aria-label="Agent status">
+            <span data-agent="recon">Recon</span>
+            <span data-agent="security">Security</span>
+            <span data-agent="verify">Verify</span>
+            <span data-agent="backup">Backup</span>
+          </div>
+        </header>
+
+        <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+
+        <div class="content-grid">
+          <form id="projectForm" class="panel form-panel">
+            <div class="section-heading">
+              <h3>Site Configuration</h3>
+              <p>Saved as JSON and ready for generation pipelines.</p>
+            </div>
+
+            <label>
+              Site name
+              <input name="name" autocomplete="organization" required minlength="2" maxlength="80" placeholder="Northstar Advisory" />
+            </label>
+
+            <label>
+              Slug
+              <input name="slug" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" maxlength="64" placeholder="northstar-advisory" />
+            </label>
+
+            <div class="two-column">
+              <label>
+                Industry
+                <input name="industry" required minlength="2" maxlength="80" placeholder="Financial consulting" />
+              </label>
+              <label>
+                Audience
+                <input name="audience" required minlength="3" maxlength="120" placeholder="Growth-stage founders" />
+              </label>
+            </div>
+
+            <label>
+              Website goal
+              <textarea name="goal" required minlength="8" maxlength="240" rows="4" placeholder="Generate qualified strategy calls from founders evaluating fractional finance support."></textarea>
+            </label>
+
+            <fieldset>
+              <legend>Pages</legend>
+              <div class="checkbox-grid">
+                <label><input type="checkbox" name="pages" value="Home" checked /> Home</label>
+                <label><input type="checkbox" name="pages" value="Services" checked /> Services</label>
+                <label><input type="checkbox" name="pages" value="About" /> About</label>
+                <label><input type="checkbox" name="pages" value="Pricing" /> Pricing</label>
+                <label><input type="checkbox" name="pages" value="Case Studies" /> Case Studies</label>
+                <label><input type="checkbox" name="pages" value="Contact" checked /> Contact</label>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Palette</legend>
+              <div class="palette-row">
+                <label><input type="radio" name="palette" value="graphite" checked /><span class="swatch graphite"></span>Graphite</label>
+                <label><input type="radio" name="palette" value="forest" /><span class="swatch forest"></span>Forest</label>
+                <label><input type="radio" name="palette" value="cobalt" /><span class="swatch cobalt"></span>Cobalt</label>
+                <label><input type="radio" name="palette" value="rose" /><span class="swatch rose"></span>Rose</label>
+              </div>
+            </fieldset>
+
+            <input type="hidden" name="templateId" id="templateId" required />
+            <button class="primary-action" type="submit">Create Project</button>
+          </form>
+
+          <section class="panel">
+            <div class="section-heading">
+              <h3>Templates</h3>
+              <p>Preview metadata for future generators.</p>
+            </div>
+            <div id="templateGrid" class="template-grid"></div>
+          </section>
+
+          <section class="panel project-detail">
+            <div class="section-heading">
+              <h3>Selected Project</h3>
+              <p id="selectedProjectMeta">No project selected.</p>
+            </div>
+
+            <div id="selectedProject" class="empty-state">Create or select a project to view its saved JSON configuration.</div>
+
+            <form id="logoForm" class="upload-row" hidden>
+              <label>
+                Logo upload
+                <input name="logo" type="file" accept="image/png,image/svg+xml" required />
+              </label>
+              <button type="submit">Upload Logo</button>
+            </form>
+
+            <div class="build-row">
+              <button id="buildButton" type="button" disabled>Build Mock Preview</button>
+              <div id="buildResult" class="build-result"></div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="section-heading">
+              <h3>Orchestrator Agents</h3>
+              <p>Placeholders for phase-two automation.</p>
+            </div>
+            <div id="agentGrid" class="agent-grid"></div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,11 @@
+node_modules/
+.env
+data/projects/*.json
+data/backups/*
+!data/backups/.gitkeep
+data/builds/*
+!data/builds/.gitkeep
+data/previews/*
+!data/previews/.gitkeep
+uploads/logos/*
+!uploads/logos/.gitkeep

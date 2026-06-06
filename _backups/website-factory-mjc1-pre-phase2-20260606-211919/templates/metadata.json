@@ -1,0 +1,28 @@
+{
+  "templates": [
+    {
+      "id": "service-pro",
+      "name": "Service Pro",
+      "category": "Local Services",
+      "previewTone": "Trustworthy, practical, conversion-focused",
+      "recommendedFor": "Consultants, agencies, home services, and B2B service firms",
+      "pages": ["Home", "Services", "Case Studies", "Contact"]
+    },
+    {
+      "id": "launch-saas",
+      "name": "Launch SaaS",
+      "category": "Software",
+      "previewTone": "Crisp, technical, product-led",
+      "recommendedFor": "SaaS landing pages, waitlists, and product validation",
+      "pages": ["Home", "Features", "Pricing", "Docs"]
+    },
+    {
+      "id": "studio-editorial",
+      "name": "Studio Editorial",
+      "category": "Creative",
+      "previewTone": "Visual, refined, portfolio-forward",
+      "recommendedFor": "Studios, creators, boutique brands, and media portfolios",
+      "pages": ["Home", "Work", "About", "Contact"]
+    }
+  ]
+}

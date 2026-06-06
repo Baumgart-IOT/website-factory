@@ -1,0 +1,37 @@
+{
+  "templates": [
+    {
+      "id": "service-pro",
+      "name": "Service Pro",
+      "category": "Local Services",
+      "description": "A practical service-business layout with trust signals, strong calls to action, and proof-led content blocks.",
+      "previewImage": "",
+      "bestUseCase": "Lead generation for consultants, agencies, home services, and B2B service firms",
+      "previewTone": "Trustworthy, practical, conversion-focused",
+      "recommendedFor": "Consultants, agencies, home services, and B2B service firms",
+      "pages": ["Home", "Services", "Case Studies", "Contact"]
+    },
+    {
+      "id": "launch-saas",
+      "name": "Launch SaaS",
+      "category": "Software",
+      "description": "A product-led SaaS layout with feature highlights, pricing readiness, and crisp conversion paths.",
+      "previewImage": "",
+      "bestUseCase": "SaaS landing pages, waitlists, and product validation",
+      "previewTone": "Crisp, technical, product-led",
+      "recommendedFor": "SaaS landing pages, waitlists, and product validation",
+      "pages": ["Home", "Features", "Pricing", "Docs"]
+    },
+    {
+      "id": "studio-editorial",
+      "name": "Studio Editorial",
+      "category": "Creative",
+      "description": "A refined portfolio-style layout for visual brands, studios, and editorial storytelling.",
+      "previewImage": "",
+      "bestUseCase": "Studios, creators, boutique brands, and media portfolios",
+      "previewTone": "Visual, refined, portfolio-forward",
+      "recommendedFor": "Studios, creators, boutique brands, and media portfolios",
+      "pages": ["Home", "Work", "About", "Contact"]
+    }
+  ]
+}

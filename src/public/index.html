@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Website Factory MVP</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <aside class="sidebar" aria-label="Website projects">
+        <div class="brand-block">
+          <p class="eyebrow">Major Checkpoint 2</p>
+          <h1>Website Factory</h1>
+          <p>Editable config, backups, agents, and preview builds.</p>
+        </div>
+
+        <form id="createProjectForm" class="create-form">
+          <h2>Create Project</h2>
+          <label>Site name <input name="name" required minlength="2" maxlength="80" placeholder="Northstar Advisory" /></label>
+          <label>Industry <input name="industry" required minlength="2" maxlength="80" placeholder="Financial consulting" /></label>
+          <label>Audience <input name="audience" required minlength="3" maxlength="120" placeholder="Growth-stage founders" /></label>
+          <label>Goal <textarea name="goal" required minlength="8" maxlength="240" rows="3" placeholder="Generate qualified strategy calls."></textarea></label>
+          <input type="hidden" name="templateId" id="createTemplateId" />
+          <input type="hidden" name="palette" value="forest" />
+          <input type="hidden" name="pages" value="Home" />
+          <input type="hidden" name="pages" value="Services" />
+          <input type="hidden" name="pages" value="Contact" />
+          <button class="primary-action" type="submit">Create</button>
+        </form>
+
+        <div class="project-list-header">
+          <span>Projects</span>
+          <span id="projectCount">0</span>
+        </div>
+        <div id="projectList" class="project-list"></div>
+      </aside>
+
+      <section class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Orchestrator Dashboard</p>
+            <h2 id="workspaceTitle">Select or create a project</h2>
+          </div>
+          <button id="refreshButton" type="button">Refresh</button>
+        </header>
+
+        <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+
+        <section class="dashboard-grid">
+          <section class="panel span-2">
+            <div class="section-heading">
+              <h3>Project Detail Editor</h3>
+              <p>Overview, branding, template, pages, and SEO are saved into JSON config.</p>
+            </div>
+
+            <form id="configForm" class="editor-form">
+              <fieldset>
+                <legend>Overview</legend>
+                <div class="form-grid">
+                  <label>Business name <input name="business.name" required /></label>
+                  <label>Tagline <input name="business.tagline" /></label>
+                  <label>Industry <input name="business.industry" /></label>
+                  <label>Location <input name="business.location" /></label>
+                  <label>Email <input name="business.email" type="email" /></label>
+                  <label>Phone <input name="business.phone" /></label>
+                </div>
+              </fieldset>
+
+              <fieldset>
+                <legend>Branding</legend>
+                <div class="form-grid">
+                  <label>Primary colour <input name="branding.primaryColor" type="color" /></label>
+                  <label>Accent colour <input name="branding.accentColor" type="color" /></label>
+                  <label class="toggle-row"><input name="branding.darkMode" type="checkbox" /> Dark mode enabled</label>
+                </div>
+              </fieldset>
+
+              <fieldset>
+                <legend>Template</legend>
+                <div class="form-grid">
+                  <label>Selected template <select name="template.selected" id="templateSelect"></select></label>
+                  <label>Animation level
+                    <select name="template.animationLevel">
+                      <option value="none">None</option>
+                      <option value="subtle">Subtle</option>
+                      <option value="standard">Standard</option>
+                      <option value="expressive">Expressive</option>
+                    </select>
+                  </label>
+                </div>
+              </fieldset>
+
+              <fieldset>
+                <legend>Pages</legend>
+                <div id="pageChecks" class="checkbox-grid"></div>
+              </fieldset>
+
+              <fieldset>
+                <legend>SEO</legend>
+                <div class="form-grid">
+                  <label>SEO title <input name="seo.title" maxlength="100" /></label>
+                  <label>SEO description <textarea name="seo.description" maxlength="220" rows="3"></textarea></label>
+                </div>
+              </fieldset>
+
+              <div class="action-row">
+                <button class="primary-action" type="submit" id="saveConfigButton" disabled>Save Config</button>
+              </div>
+            </form>
+
+            <form id="logoForm" class="logo-form">
+              <label>Logo <input name="logo" type="file" accept="image/png,image/svg+xml" /></label>
+              <button type="submit" id="uploadLogoButton" disabled>Upload Logo</button>
+            </form>
+          </section>
+
+          <section class="panel">
+            <div class="section-heading">
+              <h3>Template Selector</h3>
+              <p>Metadata comes from <code>templates/metadata.json</code>.</p>
+            </div>
+            <div id="templateGrid" class="template-grid"></div>
+          </section>
+
+          <section class="panel">
+            <div class="section-heading">
+              <h3>Agents</h3>
+              <p>Rule-based placeholders ready for specialist automation.</p>
+            </div>
+            <div id="agentGrid" class="agent-grid"></div>
+          </section>
+
+          <section class="panel">
+            <div class="section-heading">
+              <h3>Backups</h3>
+              <p>Create manual backups and restore previous snapshots.</p>
+            </div>
+            <button id="createBackupButton" type="button" disabled>Create Backup</button>
+            <div id="backupList" class="record-list"></div>
+          </section>
+
+          <section class="panel">
+            <div class="section-heading">
+              <h3>Builds</h3>
+              <p>Generate a static mock preview with metadata.</p>
+            </div>
+            <button id="buildButton" class="primary-action" type="button" disabled>Build Preview</button>
+            <div id="buildSummary" class="build-summary"></div>
+            <div id="buildList" class="record-list"></div>
+          </section>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

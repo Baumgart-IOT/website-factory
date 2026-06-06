@@ -1,0 +1,299 @@
+openapi: 3.1.0
+info:
+  title: Website Factory Orchestrator API
+  version: 0.2.0
+  description: Local MVP API for project configuration, backups, placeholder agents, and preview builds.
+servers:
+  - url: http://localhost:3000
+paths:
+  /api/templates:
+    get:
+      operationId: listTemplates
+      summary: List template metadata
+      responses:
+        "200":
+          description: Template list
+  /api/templates/{templateId}:
+    get:
+      operationId: getTemplate
+      summary: Get one template
+      parameters:
+        - $ref: "#/components/parameters/TemplateId"
+      responses:
+        "200":
+          description: Template detail
+        "404":
+          description: Template not found
+  /api/projects:
+    get:
+      operationId: listProjects
+      summary: List projects
+      responses:
+        "200":
+          description: Project list
+    post:
+      operationId: createProject
+      summary: Create a project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProjectRequest"
+      responses:
+        "201":
+          description: Created project
+  /api/projects/{projectId}:
+    get:
+      operationId: getProject
+      summary: Get project detail
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Project detail
+  /api/projects/{projectId}/config:
+    patch:
+      operationId: updateProjectConfig
+      summary: Patch project config
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectConfigPatch"
+      responses:
+        "200":
+          description: Updated project
+        "400":
+          description: Validation error
+  /api/projects/{projectId}/logo:
+    post:
+      operationId: uploadProjectLogo
+      summary: Upload a PNG or controlled SVG logo
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                logo:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Project with attached logo metadata
+  /api/projects/{projectId}/backups:
+    get:
+      operationId: listProjectBackups
+      summary: List project backups
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Backup list
+    post:
+      operationId: createProjectBackup
+      summary: Create a project backup
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        "201":
+          description: Backup created
+  /api/projects/{projectId}/rollback/{backupId}:
+    post:
+      operationId: rollbackProject
+      summary: Restore a project from a backup
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/BackupId"
+      responses:
+        "200":
+          description: Rollback result
+  /api/projects/{projectId}/agents/recon:
+    post:
+      operationId: runReconAgent
+      summary: Run the Recon placeholder checks
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Agent result
+  /api/projects/{projectId}/agents/security:
+    post:
+      operationId: runSecurityAgent
+      summary: Run the Security placeholder checks
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Agent result
+  /api/projects/{projectId}/agents/verify:
+    post:
+      operationId: runVerifyAgent
+      summary: Run the Verify placeholder checks
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Agent result
+  /api/projects/{projectId}/agents/backup:
+    post:
+      operationId: runBackupAgent
+      summary: Run the Backup placeholder checks
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Agent result
+  /api/projects/{projectId}/build:
+    post:
+      operationId: buildProject
+      summary: Build a static mock preview
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Build result
+  /api/projects/{projectId}/builds:
+    get:
+      operationId: getProjectBuilds
+      summary: List project builds
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Build list
+components:
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      schema:
+        type: string
+    TemplateId:
+      name: templateId
+      in: path
+      required: true
+      schema:
+        type: string
+    BackupId:
+      name: backupId
+      in: path
+      required: true
+      schema:
+        type: string
+  schemas:
+    CreateProjectRequest:
+      type: object
+      required: [name, industry, goal, audience, templateId, pages]
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        industry:
+          type: string
+        goal:
+          type: string
+        audience:
+          type: string
+        palette:
+          type: string
+        templateId:
+          type: string
+        pages:
+          type: array
+          items:
+            type: string
+    ProjectConfigPatch:
+      type: object
+      additionalProperties: false
+      properties:
+        business:
+          type: object
+          properties:
+            name:
+              type: string
+            tagline:
+              type: string
+            industry:
+              type: string
+            location:
+              type: string
+            email:
+              type: string
+            phone:
+              type: string
+            address:
+              type: string
+        branding:
+          type: object
+          properties:
+            logoUrl:
+              type: string
+            faviconUrl:
+              type: string
+            primaryColor:
+              type: string
+              pattern: "^#[0-9a-fA-F]{6}$"
+            accentColor:
+              type: string
+              pattern: "^#[0-9a-fA-F]{6}$"
+            backgroundColor:
+              type: string
+              pattern: "^#[0-9a-fA-F]{6}$"
+            headingFont:
+              type: string
+            bodyFont:
+              type: string
+            darkMode:
+              type: boolean
+            borderRadius:
+              type: string
+        template:
+          type: object
+          properties:
+            selected:
+              type: string
+            layout:
+              type: string
+            animationLevel:
+              type: string
+        pages:
+          type: array
+          items:
+            type: string
+        features:
+          type: object
+          additionalProperties:
+            type: boolean
+        seo:
+          type: object
+          properties:
+            title:
+              type: string
+            description:
+              type: string
+            keywords:
+              type: array
+              items:
+                type: string
+            generateSitemap:
+              type: boolean
+            generateRobots:
+              type: boolean
