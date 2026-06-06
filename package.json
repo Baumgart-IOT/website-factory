@@ -8,7 +8,8 @@
     "start": "node src/server/index.js",
     "validate": "node src/server/scripts/validate-data.js",
     "validate:data": "node src/server/scripts/validate-data.js",
-    "smoke:phase2": "node src/server/scripts/smoke-phase2.js"
+    "smoke:phase2": "node src/server/scripts/smoke-phase2.js",
+    "smoke:phase3": "node src/server/scripts/smoke-phase3.js"
   },
   "engines": {
     "node": ">=18"

@@ -1,6 +1,6 @@
 # Website Factory MVP
 
-Website Factory is a dependency-light local MVP for creating website project configs, validating assets, running placeholder specialist agents, creating backups, and generating static mock previews.
+Website Factory is a dependency-light local MVP for creating website project configs, validating assets, running placeholder specialist agents, creating backups, and generating live static previews from real template rendering.
 
 ## Current Architecture
 
@@ -13,11 +13,12 @@ src/
     storage/              JSON persistence helpers
     validation/           Project, config, and upload validation
     scripts/              Validation and smoke tests
+    rendering/            Static preview renderer
 templates/metadata.json   Template preview metadata
 data/projects/            Project JSON records
 data/backups/{projectId}/ Backup snapshots
 data/builds/{projectId}/  Build metadata
-data/previews/{projectId}/{buildId}/ Static preview files
+previews/{projectId}/{buildId}/ Static preview files
 uploads/logos/            Validated logo uploads
 docs/                     Checkpoints, OpenAPI, GPT setup, visual test checklist
 ```
@@ -43,6 +44,61 @@ Open `http://localhost:3000`.
 - Improved mock build flow with build metadata and a generated static preview file.
 - Dashboard sections for project list, detail editor, template selector, agents, backups, and builds.
 - OpenAPI schema for future Custom GPT Actions.
+
+## Phase 3 Renderer
+
+Phase 3 replaces the single mock preview with a renderer that generates a real static site from project config and template metadata.
+
+Renderer modules live in `src/server/rendering/`:
+
+- `renderer.js` orchestrates full preview generation.
+- `pageRenderer.js` renders HTML shells, SEO metadata, navigation, footer, and page paths.
+- `sectionRenderer.js` renders reusable sections.
+- `themeRenderer.js` writes CSS variables and site styling.
+- `sitemapRenderer.js` writes `sitemap.xml`.
+- `robotsRenderer.js` writes `robots.txt`.
+
+Generated previews are written to:
+
+```text
+previews/{projectId}/{buildId}/
+```
+
+Each build generates at minimum:
+
+```text
+index.html
+styles.css
+app.js
+sitemap.xml
+robots.txt
+```
+
+Configured pages generate slug-based files, such as `services/index.html`, `about/index.html`, and `contact/index.html`.
+
+## Build Output Format
+
+`POST /api/projects/:id/build` returns:
+
+```json
+{
+  "build": {
+    "buildId": "build_...",
+    "projectId": "...",
+    "status": "success",
+    "createdAt": "...",
+    "previewPath": "/previews/{projectId}/{buildId}/index.html",
+    "generatedFiles": ["index.html", "styles.css", "app.js", "sitemap.xml", "robots.txt"],
+    "logs": []
+  }
+}
+```
+
+Open `previewPath` in the browser while the local server is running.
+
+## Template Rendering Behaviour
+
+`templates/metadata.json` influences layout style, section ordering, colour fallbacks, typography fallbacks, and preview personality. The renderer does not hardcode one template; it reads the selected template and applies its metadata.
 
 ## API Endpoints
 
@@ -85,23 +141,26 @@ Use `docs/openapi/website-factory-orchestrator.openapi.yaml` as the future Custo
 ```bash
 npm run validate:data
 npm run smoke:phase2
+npm run smoke:phase3
 ```
 
-The smoke test checks templates, project creation, detail fetch, config patch, backups, agents, build metadata, preview path creation, rollback, and data validation.
+The Phase 2 smoke test checks templates, project creation, detail fetch, config patch, backups, agents, build metadata, preview path creation, rollback, and data validation.
+
+The Phase 3 smoke test checks multi-page rendering, generated files, served preview HTML, stronger Verify agent checks, and that Phase 2 smoke still passes.
 
 ## Known Limitations
 
 - No authentication yet.
 - No real external deployment yet.
 - Agent checks are rule-based placeholders.
-- Preview generation is still simple/static.
+- Preview generation is static and local, though it now renders real multi-page output.
 - Visual browser testing may need to be done manually if the sandbox browser fails.
 
 ## Next Roadmap
 
-1. Replace static mock previews with real template generation.
-2. Add persistent database storage and object storage for production usage.
-3. Add authentication and project ownership.
-4. Add a build queue, logs, retries, and artifact history.
-5. Add automated accessibility, responsive, link, and security checks.
+1. Add editable structured content blocks per page and per section.
+2. Add automated accessibility, responsive, link, and security checks.
+3. Add persistent database storage and object storage for production usage.
+4. Add authentication and project ownership.
+5. Add a build queue, logs, retries, and artifact history.
 6. Add explicit deployment workflows with approval gates.

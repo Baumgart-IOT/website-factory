@@ -1,5 +1,7 @@
 import { spawn } from "node:child_process";
 import { stat } from "node:fs/promises";
+import { join } from "node:path";
+import { paths } from "../config/paths.js";
 
 const baseUrl = process.env.SMOKE_BASE_URL || "http://localhost:3000";
 let serverProcess = null;
@@ -76,7 +78,7 @@ async function runSmoke() {
   const build = await post(`/api/projects/${projectId}/build`);
   assert(build.build.status === "success", "Build endpoint works");
   assert(build.build.previewPath && build.build.previewPath.includes(projectId), "Build creates preview metadata/path");
-  await stat(`.${build.build.previewPath.replace("/previews", "/data/previews")}`);
+  await stat(join(paths.previews, projectId, build.build.buildId, "index.html"));
 
   const builds = await get(`/api/projects/${projectId}/builds`);
   assert(builds.builds.some((item) => item.buildId === build.build.buildId), "Build list returns created build");

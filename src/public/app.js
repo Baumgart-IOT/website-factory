@@ -363,7 +363,9 @@ function renderBuilds() {
     <p><strong>Status:</strong> ${escapeHtml(latest.status)}</p>
     <p><strong>Last build ID:</strong> ${escapeHtml(latest.buildId)}</p>
     <p><strong>Preview path:</strong> <a href="${escapeHtml(latest.previewPath)}" target="_blank" rel="noreferrer">${escapeHtml(latest.previewPath)}</a></p>
+    <p><strong>Generated files:</strong> ${escapeHtml((latest.generatedFiles || []).join(", ") || "No file list recorded")}</p>
     <p><strong>Log summary:</strong> ${escapeHtml((latest.logs || []).join(" "))}</p>
+    <div class="record-actions"><a class="button-link" href="${escapeHtml(latest.previewPath)}" target="_blank" rel="noreferrer">Open Preview</a></div>
   ` : `<p class="empty">No build yet.</p>`;
 
   els.buildList.innerHTML = state.builds.length ? state.builds.map((build) => `
