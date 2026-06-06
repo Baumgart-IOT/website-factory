@@ -10,7 +10,7 @@ export const paths = {
   projects: resolve(ROOT, "data/projects"),
   backups: resolve(ROOT, "data/backups"),
   builds: resolve(ROOT, "data/builds"),
-  previews: resolve(ROOT, "data/previews"),
+  previews: resolve(ROOT, "previews"),
   templates: resolve(ROOT, "templates"),
   uploads: resolve(ROOT, "uploads"),
   logos: resolve(ROOT, "uploads/logos")

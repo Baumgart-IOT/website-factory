@@ -99,6 +99,18 @@ legend { padding: 0 6px; color: #39413e; font-size: 13px; font-weight: 900; }
 .template-card h4, .agent-card h4, .record-card h4 { margin: 0 0 6px; }
 .template-card p, .agent-card p, .record-card p, .build-summary p { margin: 4px 0; color: var(--muted); font-size: 14px; }
 .template-actions, .record-actions, .agent-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center; }
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  padding: 0 12px;
+  font-weight: 900;
+  text-decoration: none;
+}
 .status-badge { border-radius: 999px; background: #eef4f2; color: #31584f; padding: 5px 8px; font-size: 12px; font-weight: 900; }
 .status-badge.attention { background: #fff1df; color: #85521d; }
 .status-badge.pending { background: #f0ede6; color: #635d54; }

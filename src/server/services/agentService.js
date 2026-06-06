@@ -1,6 +1,10 @@
+import { readFile, stat } from "node:fs/promises";
+import { join } from "node:path";
+import { paths } from "../config/paths.js";
 import { listProjectBackups } from "./backupService.js";
 import { getProject, saveProject } from "./projectService.js";
 import { containsForbiddenConfigKey, normalizeProjectConfig } from "../validation/configValidation.js";
+import { pageOutputPath } from "../rendering/pageRenderer.js";
 
 export async function runAgent(projectId, agentName) {
   const project = await getProject(projectId);
@@ -49,22 +53,7 @@ const checks = {
       "Keep secrets in environment variables or a managed secret store, not project JSON."
     ]
   }),
-  verify: async (project, config) => ({
-    blockingIssues: [
-      !config.business.name && "Business name is required.",
-      !config.template.selected && "Template selection is required.",
-      (!config.pages || config.pages.length === 0) && "At least one page is required.",
-      (!project.builds || project.builds.length === 0) && "No build exists yet.",
-      project.builds?.[0] && !project.builds[0].previewPath && "Latest build does not have a preview path.",
-      !config.seo.title && "SEO title is missing.",
-      !config.seo.description && "SEO description is missing."
-    ].filter(Boolean),
-    warnings: [],
-    recommendations: [
-      "Run a manual browser preview check after each successful build.",
-      "Add automated accessibility and responsive checks in the next phase."
-    ]
-  }),
+  verify: verifyBuildOutput,
   backup: async (project) => {
     const backups = await listProjectBackups(project.id);
     const latest = backups[0];
@@ -78,6 +67,62 @@ const checks = {
     };
   }
 };
+
+async function verifyBuildOutput(project, config) {
+  const latest = project.builds?.[0];
+  const blockingIssues = [
+    !config.business.name && "Business name is required.",
+    !config.template.selected && "Template selection is required.",
+    (!config.pages || config.pages.length === 0) && "At least one page is required.",
+    !latest && "No build exists yet.",
+    latest && !latest.previewPath && "Latest build does not have a preview path.",
+    !config.seo.title && "SEO title is missing.",
+    !config.seo.description && "SEO description is missing."
+  ].filter(Boolean);
+
+  if (latest) {
+    const buildDir = join(paths.previews, project.id, latest.buildId);
+    const requiredFiles = ["index.html", "styles.css", "sitemap.xml", "robots.txt"];
+    for (const file of requiredFiles) {
+      if (!(await exists(join(buildDir, file)))) blockingIssues.push(`Generated ${file} is missing.`);
+    }
+
+    for (const page of config.pages) {
+      const output = pageOutputPath(page);
+      if (!(await exists(join(buildDir, output)))) blockingIssues.push(`Configured page output is missing: ${output}.`);
+    }
+
+    const index = await readText(join(buildDir, "index.html"));
+    if (index && !index.includes('class="nav"')) blockingIssues.push("Navigation links are not generated.");
+    if (config.features?.contactForm && index && !index.includes('id="contact"')) blockingIssues.push("Contact section is missing.");
+  }
+
+  return {
+    blockingIssues,
+    warnings: [],
+    recommendations: [
+      "Open the preview URL manually for visual QA.",
+      "Add automated accessibility, link, and responsive checks in the next phase."
+    ]
+  };
+}
+
+async function exists(target) {
+  try {
+    await stat(target);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function readText(target) {
+  try {
+    return await readFile(target, "utf8");
+  } catch {
+    return "";
+  }
+}
 
 function labelFor(agentName) {
   return {
