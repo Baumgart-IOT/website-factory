@@ -74,6 +74,30 @@
                   <label>Accent colour <input name="branding.accentColor" type="color" /></label>
                   <label class="toggle-row"><input name="branding.darkMode" type="checkbox" /> Dark mode enabled</label>
                 </div>
+                <div class="media-field-grid">
+                  <div class="media-field" data-media-field="branding.logoUrl" data-media-asset-field="branding.logoAssetId" data-media-kind="logo">
+                    <span class="media-field-label">Logo</span>
+                    <img class="media-field-preview" hidden alt="Logo preview" />
+                    <input type="hidden" name="branding.logoUrl" data-media-url />
+                    <input type="hidden" name="branding.logoAssetId" data-media-asset-id />
+                    <div class="media-field-actions">
+                      <button type="button" data-media-action="choose">Choose from media</button>
+                      <button type="button" data-media-action="upload">Upload</button>
+                      <button type="button" data-media-action="clear">Clear</button>
+                    </div>
+                  </div>
+                  <div class="media-field" data-media-field="branding.faviconUrl" data-media-asset-field="branding.faviconAssetId" data-media-kind="favicon">
+                    <span class="media-field-label">Favicon</span>
+                    <img class="media-field-preview" hidden alt="Favicon preview" />
+                    <input type="hidden" name="branding.faviconUrl" data-media-url />
+                    <input type="hidden" name="branding.faviconAssetId" data-media-asset-id />
+                    <div class="media-field-actions">
+                      <button type="button" data-media-action="choose">Choose from media</button>
+                      <button type="button" data-media-action="upload">Upload</button>
+                      <button type="button" data-media-action="clear">Clear</button>
+                    </div>
+                  </div>
+                </div>
               </fieldset>
 
               <fieldset>
@@ -129,6 +153,26 @@
               <p>Rule-based placeholders ready for specialist automation.</p>
             </div>
             <div id="agentGrid" class="agent-grid"></div>
+          </section>
+
+          <section class="panel span-2">
+            <div class="section-heading">
+              <h3>Media Library</h3>
+              <p>Upload and manage validated images, logos, and favicons stored per project.</p>
+            </div>
+            <div id="mediaError" class="error-banner" hidden></div>
+            <form id="mediaUploadForm" class="inline-form">
+              <label>Upload image <input name="file" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/x-icon,.ico" /></label>
+              <label>Kind
+                <select name="kind">
+                  <option value="image">Image</option>
+                  <option value="logo">Logo</option>
+                  <option value="favicon">Favicon</option>
+                </select>
+              </label>
+              <button type="submit" id="mediaUploadButton" disabled>Upload</button>
+            </form>
+            <div id="mediaGrid" class="media-grid"></div>
           </section>
 
           <section class="panel">
@@ -220,6 +264,15 @@
         </section>
       </section>
     </main>
+
+    <dialog id="assetPickerDialog" class="asset-picker-dialog">
+      <div class="asset-picker-header">
+        <h3>Choose media</h3>
+        <button type="button" id="assetPickerCloseButton">Close</button>
+      </div>
+      <p id="assetPickerEmpty" class="empty" hidden>No media uploaded yet. Upload an image from the Media Library panel first.</p>
+      <div id="assetPickerGrid" class="media-grid"></div>
+    </dialog>
 
     <script type="module" src="/app.js"></script>
   </body>

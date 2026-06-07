@@ -13,7 +13,8 @@ export const paths = {
   previews: resolve(ROOT, "previews"),
   templates: resolve(ROOT, "templates"),
   uploads: resolve(ROOT, "uploads"),
-  logos: resolve(ROOT, "uploads/logos")
+  logos: resolve(ROOT, "uploads/logos"),
+  projectMedia: resolve(ROOT, "uploads/projects")
 };
 
 export async function ensureDirectories() {
@@ -22,6 +23,7 @@ export async function ensureDirectories() {
     mkdir(paths.backups, { recursive: true }),
     mkdir(paths.builds, { recursive: true }),
     mkdir(paths.previews, { recursive: true }),
-    mkdir(paths.logos, { recursive: true })
+    mkdir(paths.logos, { recursive: true }),
+    mkdir(paths.projectMedia, { recursive: true })
   ]);
 }

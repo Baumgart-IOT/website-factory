@@ -6,6 +6,7 @@ import { getProject, saveProject } from "./projectService.js";
 import { containsForbiddenConfigKey, normalizeProjectConfig } from "../validation/configValidation.js";
 import { pageOutputPath } from "../rendering/pageRenderer.js";
 import { normalizeProjectContent } from "./contentService.js";
+import { getUsedAssetReferences } from "./mediaService.js";
 
 export async function runAgent(projectId, agentName) {
   const project = await getProject(projectId);
@@ -71,6 +72,7 @@ const checks = {
 
 async function verifyBuildOutput(project, config) {
   const latest = project.builds?.[0];
+  const warnings = [];
   const blockingIssues = [
     !config.business.name && "Business name is required.",
     !config.template.selected && "Template selection is required.",
@@ -97,16 +99,69 @@ async function verifyBuildOutput(project, config) {
     const index = await readText(join(buildDir, "index.html"));
     if (index && !index.includes('class="nav"')) blockingIssues.push("Navigation links are not generated.");
     if (config.features?.contactForm && index && !index.includes('id="contact"')) blockingIssues.push("Contact section is missing.");
+
+    const mediaCheck = checkMediaReferences(project, index);
+    blockingIssues.push(...mediaCheck.blockingIssues);
+    warnings.push(...mediaCheck.warnings);
   }
 
   return {
     blockingIssues,
-    warnings: [],
+    warnings,
     recommendations: [
       "Open the preview URL manually for visual QA.",
       "Add automated accessibility, link, and responsive checks in the next phase."
     ]
   };
+}
+
+function checkMediaReferences(project, indexHtml) {
+  const blockingIssues = [];
+  const warnings = [];
+  const assets = project.media?.assets || [];
+
+  // Don't fail old projects that have no media library entries and no media references.
+  const references = getUsedAssetReferences(project);
+  if (assets.length === 0 && references.length === 0) {
+    return { blockingIssues, warnings };
+  }
+
+  const assetById = new Map(assets.map((asset) => [asset.assetId, asset]));
+  const assetByUrl = new Map(assets.map((asset) => [asset.url, asset]));
+
+  for (const asset of assets) {
+    if (!asset.validation || typeof asset.validation.status !== "string") {
+      warnings.push(`Media asset ${asset.originalName || asset.assetId} is missing upload validation metadata.`);
+    }
+  }
+
+  for (const reference of references) {
+    const isProjectMediaUrl = typeof reference.url === "string" && reference.url.startsWith(`/uploads/projects/${project.id}/`);
+    const matchedAsset = (reference.assetId && assetById.get(reference.assetId)) || (reference.url && assetByUrl.get(reference.url));
+
+    if (reference.assetId && !assetById.has(reference.assetId)) {
+      blockingIssues.push(`${reference.location} references a media asset that no longer exists in the media library.`);
+      continue;
+    }
+
+    if (!matchedAsset && isProjectMediaUrl) {
+      blockingIssues.push(`${reference.location} points to an uploaded media file that is missing from the media library: ${reference.url}.`);
+      continue;
+    }
+
+    if (matchedAsset && indexHtml && reference.location.startsWith("content.pages.home") && !indexHtml.includes(matchedAsset.url)) {
+      warnings.push(`${reference.location} is set but the generated home page preview does not include ${matchedAsset.url}.`);
+    }
+  }
+
+  if (project.config?.branding?.logoAssetId && indexHtml) {
+    const logoAsset = assetById.get(project.config.branding.logoAssetId);
+    if (logoAsset && !indexHtml.includes(logoAsset.url)) {
+      warnings.push("Selected logo asset is configured but was not found in the generated preview header.");
+    }
+  }
+
+  return { blockingIssues, warnings };
 }
 
 async function exists(target) {

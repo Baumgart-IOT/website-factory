@@ -37,6 +37,18 @@ Repeated items are defined in a schema `arrays` entry:
 
 The array editor automatically supports add, remove, move up, and move down.
 
+## Image Fields & The Asset Picker (MJC6)
+
+Image-bearing fields (`hero.imageUrl`, `projects.items[].imageUrl`, `gallery.images[].imageUrl`) use the `image` field kind:
+
+```js
+image("imageUrl", "Image URL")
+```
+
+`renderField` / `renderArrayField` render these via `renderImageField`, which pairs the existing text input with a **"Choose from media"** button. Clicking it is intercepted in `handleSectionFieldClick` and opens the asset picker (`openAssetPicker`); the chosen asset's URL is written back into the input and `input`/`change` events are dispatched so dirty-tracking and `collectSectionEditorValues` keep working unchanged — image fields remain plain string URLs in the content model.
+
+The asset picker itself (`#assetPickerDialog`) is a native `<dialog>` filtered to image-kind assets. See `docs/media-library.md` for the full media library, validation, and branding integration details.
+
 ## Save, Build, Preview Flow
 
 - `Save Section` persists the current form content.

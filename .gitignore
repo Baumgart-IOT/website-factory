@@ -11,4 +11,6 @@ previews/*
 !previews/.gitkeep
 uploads/logos/*
 !uploads/logos/.gitkeep
+uploads/projects/*
+!uploads/projects/.gitkeep
 work/*.log
