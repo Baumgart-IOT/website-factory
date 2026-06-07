@@ -1,6 +1,6 @@
-export function renderPage({ page, config, template, cssPath, scriptPath, body }) {
+export function renderPage({ page, navPages, config, template, cssPath, scriptPath, body }) {
   const title = seoTitle(page, config);
-  const description = config.seo?.description || config.business?.tagline || "";
+  const description = page?.seo?.description || config.seo?.description || config.business?.tagline || "";
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -15,7 +15,7 @@ export function renderPage({ page, config, template, cssPath, scriptPath, body }
     <link rel="stylesheet" href="${cssPath}">
   </head>
   <body data-template="${escapeHtml(config.template.selected)}">
-    ${renderHeader(page, config)}
+    ${renderHeader(page, config, navPages)}
     <main>${body}</main>
     ${renderFooter(config)}
     <script src="${scriptPath}" defer></script>
@@ -23,9 +23,9 @@ export function renderPage({ page, config, template, cssPath, scriptPath, body }
 </html>`;
 }
 
-export function renderHeader(currentPage, config) {
+export function renderHeader(currentPage, config, navPages = config.pages) {
   const logo = config.branding?.logoUrl ? `<img src="${escapeAttribute(config.branding.logoUrl)}" alt="">` : "";
-  const nav = config.pages.map((page) => {
+  const nav = navPages.map((page) => {
     const href = navHref(page, currentPage);
     const current = pageSlug(page) === pageSlug(currentPage) ? ' aria-current="page"' : "";
     return `<a href="${href}"${current}>${escapeHtml(pageTitle(page))}</a>`;
@@ -52,11 +52,16 @@ export function pageOutputPath(page) {
 }
 
 export function pageSlug(page) {
+  if (typeof page === "object" && page?.slug) {
+    const slug = page.slug.replace(/^\//, "").replace(/\/$/, "");
+    return slug ? slug.toLowerCase().replace(/[^a-z0-9/-]+/g, "-").replace(/\//g, "-") : "home";
+  }
   const slug = String(page || "home").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   return !slug || slug === "index" ? "home" : slug;
 }
 
 export function pageTitle(page) {
+  if (typeof page === "object" && page?.title) return String(page.title);
   return String(page || "Home").replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim().replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
@@ -73,6 +78,7 @@ export function escapeAttribute(value) {
 }
 
 function seoTitle(page, config) {
+  if (page?.seo?.title) return page.seo.title;
   if (pageSlug(page) === "home") return config.seo?.title || config.business.name;
   return `${pageTitle(page)} | ${config.business.name}`;
 }

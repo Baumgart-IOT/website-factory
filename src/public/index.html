@@ -149,6 +149,65 @@
             <div id="buildSummary" class="build-summary"></div>
             <div id="buildList" class="record-list"></div>
           </section>
+
+          <section class="panel span-2">
+            <div class="section-heading">
+              <h3>Content</h3>
+              <p>Edit structured page and section content used by the renderer.</p>
+            </div>
+
+            <div class="content-editor">
+              <div>
+                <div class="action-row compact">
+                  <label>Page <select id="contentPageSelect"></select></label>
+                  <button id="initializeContentButton" type="button" disabled>Initialize Content</button>
+                </div>
+
+                <form id="pageForm" class="editor-form">
+                  <fieldset>
+                    <legend>Page Metadata</legend>
+                    <div class="form-grid">
+                      <label>Title <input name="page.title" /></label>
+                      <label>Slug <input name="page.slug" placeholder="/services" /></label>
+                      <label>SEO title <input name="page.seo.title" /></label>
+                      <label>SEO description <textarea name="page.seo.description" rows="3"></textarea></label>
+                    </div>
+                  </fieldset>
+                  <div class="action-row">
+                    <button class="primary-action" id="savePageButton" type="submit" disabled>Save Page</button>
+                    <button id="deletePageButton" type="button" disabled>Delete Page</button>
+                  </div>
+                </form>
+
+                <form id="addPageForm" class="inline-form">
+                  <label>New page title <input name="title" placeholder="Case Studies" /></label>
+                  <button id="addPageButton" type="submit" disabled>Add Page</button>
+                </form>
+              </div>
+
+              <div>
+                <form id="sectionForm" class="editor-form">
+                  <fieldset>
+                    <legend>Section Editor</legend>
+                    <div class="form-grid">
+                      <label>Section <select id="sectionSelect"></select></label>
+                      <label>Type <select name="section.type" id="sectionTypeSelect"></select></label>
+                      <label>Order <input name="section.order" type="number" min="1" /></label>
+                      <label class="toggle-row"><input name="section.enabled" type="checkbox" /> Enabled</label>
+                    </div>
+                    <label>Content JSON <textarea name="section.content" rows="12" spellcheck="false"></textarea></label>
+                  </fieldset>
+                  <div class="action-row section-actions">
+                    <button class="primary-action" id="saveSectionButton" type="submit" disabled>Save Section</button>
+                    <button id="addSectionButton" type="button" disabled>Add Section</button>
+                    <button id="moveSectionUpButton" type="button" disabled>Move Up</button>
+                    <button id="moveSectionDownButton" type="button" disabled>Move Down</button>
+                    <button id="deleteSectionButton" type="button" disabled>Delete Section</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </section>
         </section>
       </section>
     </main>

@@ -1,6 +1,6 @@
 # Template Renderer
 
-Phase 3 adds a real local renderer that turns saved project config into static preview files.
+Phase 3 added a real local renderer that turns saved project config into static preview files. MJC4 updates it to prefer structured `project.content` when present.
 
 ## Renderer Architecture
 
@@ -15,6 +15,8 @@ src/server/rendering/
 ```
 
 `POST /api/projects/:id/build` validates config, creates a pre-build backup, loads template metadata, calls `renderProjectPreview`, writes metadata, and stores the build record.
+
+The renderer now chooses pages and sections from `project.content.pages` first. If content is missing, it seeds content from config in memory and keeps MJC3 projects backward compatible.
 
 ## Generated Files
 
@@ -55,7 +57,7 @@ contact/index.html
 - `cta`
 - `footer`
 
-If configured content is missing, section renderers generate professional placeholders using business name, industry, tagline, selected template, and template personality.
+If configured content is missing, section renderers generate professional placeholders using business name, industry, tagline, selected template, and template personality. If a section has partial user content, only missing fields fall back.
 
 ## Template Metadata Influence
 

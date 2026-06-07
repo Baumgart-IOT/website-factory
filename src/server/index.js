@@ -11,6 +11,18 @@ import { readBody } from "./utils/http.js";
 import { createProjectBackup, listProjectBackups, rollbackProject } from "./services/backupService.js";
 import { runAgent } from "./services/agentService.js";
 import { buildProject, listProjectBuilds } from "./services/buildService.js";
+import {
+  addContentPage,
+  addContentSection,
+  deleteContentPage,
+  deleteContentSection,
+  getProjectContent,
+  initializeProjectContent,
+  moveContentSection,
+  patchContentPage,
+  patchContentSection,
+  patchProjectContent
+} from "./services/contentService.js";
 
 const PORT = Number.parseInt(process.env.PORT || "3000", 10);
 const PUBLIC_DIR = new URL("../public/", import.meta.url);
@@ -96,6 +108,70 @@ async function handleApi(req, res, url) {
   if (req.method === "PATCH" && configMatch) {
     const payload = await readJsonBody(req);
     sendJson(res, 200, { project: await updateProjectConfig(configMatch[1], payload) });
+    return;
+  }
+
+  const contentMatch = url.pathname.match(/^\/api\/projects\/([a-zA-Z0-9-]+)\/content$/);
+  if (req.method === "GET" && contentMatch) {
+    sendJson(res, 200, await getProjectContent(contentMatch[1]));
+    return;
+  }
+
+  if (req.method === "PATCH" && contentMatch) {
+    const payload = await readJsonBody(req);
+    sendJson(res, 200, await patchProjectContent(contentMatch[1], payload));
+    return;
+  }
+
+  const contentInitMatch = url.pathname.match(/^\/api\/projects\/([a-zA-Z0-9-]+)\/content\/initialize$/);
+  if (req.method === "POST" && contentInitMatch) {
+    const payload = await optionalJsonBody(req);
+    sendJson(res, 200, await initializeProjectContent(contentInitMatch[1], { force: Boolean(payload.force) }));
+    return;
+  }
+
+  const contentPagesMatch = url.pathname.match(/^\/api\/projects\/([a-zA-Z0-9-]+)\/content\/pages$/);
+  if (req.method === "POST" && contentPagesMatch) {
+    const payload = await readJsonBody(req);
+    sendJson(res, 201, await addContentPage(contentPagesMatch[1], payload));
+    return;
+  }
+
+  const contentPageMatch = url.pathname.match(/^\/api\/projects\/([a-zA-Z0-9-]+)\/content\/pages\/([a-zA-Z0-9-]+)$/);
+  if (req.method === "PATCH" && contentPageMatch) {
+    const payload = await readJsonBody(req);
+    sendJson(res, 200, await patchContentPage(contentPageMatch[1], contentPageMatch[2], payload));
+    return;
+  }
+
+  if (req.method === "DELETE" && contentPageMatch) {
+    sendJson(res, 200, await deleteContentPage(contentPageMatch[1], contentPageMatch[2]));
+    return;
+  }
+
+  const contentSectionsMatch = url.pathname.match(/^\/api\/projects\/([a-zA-Z0-9-]+)\/content\/pages\/([a-zA-Z0-9-]+)\/sections$/);
+  if (req.method === "POST" && contentSectionsMatch) {
+    const payload = await readJsonBody(req);
+    sendJson(res, 201, await addContentSection(contentSectionsMatch[1], contentSectionsMatch[2], payload));
+    return;
+  }
+
+  const contentSectionMoveMatch = url.pathname.match(/^\/api\/projects\/([a-zA-Z0-9-]+)\/content\/pages\/([a-zA-Z0-9-]+)\/sections\/([a-zA-Z0-9-]+)\/move$/);
+  if (req.method === "POST" && contentSectionMoveMatch) {
+    const payload = await readJsonBody(req);
+    sendJson(res, 200, await moveContentSection(contentSectionMoveMatch[1], contentSectionMoveMatch[2], contentSectionMoveMatch[3], payload));
+    return;
+  }
+
+  const contentSectionMatch = url.pathname.match(/^\/api\/projects\/([a-zA-Z0-9-]+)\/content\/pages\/([a-zA-Z0-9-]+)\/sections\/([a-zA-Z0-9-]+)$/);
+  if (req.method === "PATCH" && contentSectionMatch) {
+    const payload = await readJsonBody(req);
+    sendJson(res, 200, await patchContentSection(contentSectionMatch[1], contentSectionMatch[2], contentSectionMatch[3], payload));
+    return;
+  }
+
+  if (req.method === "DELETE" && contentSectionMatch) {
+    sendJson(res, 200, await deleteContentSection(contentSectionMatch[1], contentSectionMatch[2], contentSectionMatch[3]));
     return;
   }
 

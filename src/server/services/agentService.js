@@ -5,6 +5,7 @@ import { listProjectBackups } from "./backupService.js";
 import { getProject, saveProject } from "./projectService.js";
 import { containsForbiddenConfigKey, normalizeProjectConfig } from "../validation/configValidation.js";
 import { pageOutputPath } from "../rendering/pageRenderer.js";
+import { normalizeProjectContent } from "./contentService.js";
 
 export async function runAgent(projectId, agentName) {
   const project = await getProject(projectId);
@@ -87,7 +88,8 @@ async function verifyBuildOutput(project, config) {
       if (!(await exists(join(buildDir, file)))) blockingIssues.push(`Generated ${file} is missing.`);
     }
 
-    for (const page of config.pages) {
+    const content = normalizeProjectContent(project);
+    for (const page of Object.values(content.pages)) {
       const output = pageOutputPath(page);
       if (!(await exists(join(buildDir, output)))) blockingIssues.push(`Configured page output is missing: ${output}.`);
     }

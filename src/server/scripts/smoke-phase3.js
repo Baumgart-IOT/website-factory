@@ -2,16 +2,21 @@ import { spawn } from "node:child_process";
 import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { paths } from "../config/paths.js";
+import { cleanupSmokeProjects } from "./testUtils.js";
 
 const baseUrl = process.env.SMOKE_BASE_URL || "http://localhost:3000";
+const smokePrefix = "smoke-phase3-";
 let serverProcess = null;
 
 try {
   await ensureServer();
+  await cleanupSmokeProjects(smokePrefix);
   await runSmoke();
+  await cleanupSmokeProjects(smokePrefix);
   await import("./smoke-phase2.js");
   console.log("Phase 3 smoke test passed.");
 } finally {
+  await cleanupSmokeProjects(smokePrefix).catch(() => {});
   if (serverProcess) serverProcess.kill();
 }
 
@@ -21,7 +26,7 @@ async function runSmoke() {
   const template = templates.templates.find((item) => item.id === "launch-saas") || templates.templates[0];
 
   const created = await post("/api/projects", {
-    name: `Renderer Smoke ${Date.now()}`,
+    name: `${smokePrefix}${Date.now()}`,
     industry: "Software automation",
     goal: "Turn project configuration into a polished live preview.",
     audience: "Operations teams",
@@ -34,7 +39,7 @@ async function runSmoke() {
 
   const patched = await patch(`/api/projects/${projectId}/config`, {
     business: {
-      name: "Renderer Smoke Co",
+      name: `${smokePrefix}co`,
       tagline: "Real previews from structured config.",
       industry: "Software automation",
       location: "Remote",
@@ -72,7 +77,7 @@ async function runSmoke() {
       generateRobots: true
     }
   });
-  assert(patched.project.config.business.name === "Renderer Smoke Co", "Config patch sets business, branding, template, pages, and SEO");
+  assert(patched.project.config.business.name === `${smokePrefix}co`, "Config patch sets business, branding, template, pages, and SEO");
 
   const build = await post(`/api/projects/${projectId}/build`);
   assert(build.build.status === "success", "Build endpoint creates real preview files");
@@ -90,12 +95,12 @@ async function runSmoke() {
   await stat(join(buildDir, "services", "index.html"));
 
   const index = await readFile(join(buildDir, "index.html"), "utf8");
-  assert(index.includes("Renderer Smoke Co"), "Preview index contains business name");
+  assert(index.includes(`${smokePrefix}co`), "Preview index contains business name");
   assert(index.includes('class="nav"'), "Navigation links are generated");
   assert(index.includes('id="contact"'), "Contact section exists when enabled");
 
   const servedPreview = await text(build.build.previewPath);
-  assert(servedPreview.includes("Renderer Smoke Co"), "Preview URL opens generated HTML");
+  assert(servedPreview.includes(`${smokePrefix}co`), "Preview URL opens generated HTML");
 
   const verify = await post(`/api/projects/${projectId}/agents/verify`);
   assert(verify.agent.status === "pass", "Verify agent passes generated preview checks");
