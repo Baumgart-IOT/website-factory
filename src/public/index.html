@@ -153,8 +153,9 @@
           <section class="panel span-2">
             <div class="section-heading">
               <h3>Content</h3>
-              <p>Edit structured page and section content used by the renderer.</p>
+              <p>Edit structured page and section content used by the renderer. <span id="contentDirtyIndicator" class="dirty-indicator" hidden>Unsaved changes</span></p>
             </div>
+            <div id="contentError" class="error-banner" hidden></div>
 
             <div class="content-editor">
               <div>
@@ -195,10 +196,18 @@
                       <label>Order <input name="section.order" type="number" min="1" /></label>
                       <label class="toggle-row"><input name="section.enabled" type="checkbox" /> Enabled</label>
                     </div>
-                    <label>Content JSON <textarea name="section.content" rows="12" spellcheck="false"></textarea></label>
+                    <div id="sectionFields" class="section-fields"></div>
+                    <details class="advanced-json">
+                      <summary>Advanced JSON editor</summary>
+                      <p>Use this fallback only when the form editor does not expose a field yet. Values are still validated before saving.</p>
+                      <label>Content JSON <textarea name="section.content" rows="12" spellcheck="false"></textarea></label>
+                    </details>
                   </fieldset>
                   <div class="action-row section-actions">
                     <button class="primary-action" id="saveSectionButton" type="submit" disabled>Save Section</button>
+                    <button id="saveAndBuildSectionButton" type="button" disabled>Save and Build Preview</button>
+                    <button id="buildContentButton" type="button" disabled>Build Preview From Content</button>
+                    <button id="openLatestPreviewButton" type="button" disabled>Open Latest Preview</button>
                     <button id="addSectionButton" type="button" disabled>Add Section</button>
                     <button id="moveSectionUpButton" type="button" disabled>Move Up</button>
                     <button id="moveSectionDownButton" type="button" disabled>Move Down</button>

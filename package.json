@@ -10,7 +10,8 @@
     "validate:data": "node src/server/scripts/validate-data.js",
     "smoke:phase2": "node src/server/scripts/smoke-phase2.js",
     "smoke:phase3": "node src/server/scripts/smoke-phase3.js",
-    "smoke:phase4": "node src/server/scripts/smoke-phase4.js"
+    "smoke:phase4": "node src/server/scripts/smoke-phase4.js",
+    "smoke:phase5": "node src/server/scripts/smoke-phase5.js"
   },
   "engines": {
     "node": ">=18"

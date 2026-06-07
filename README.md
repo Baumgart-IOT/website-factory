@@ -1,6 +1,6 @@
 # Website Factory MVP
 
-Website Factory is a dependency-light local MVP for creating website project configs, editing structured content blocks, validating assets, running placeholder specialist agents, creating backups, and generating live static previews from real template rendering.
+Website Factory is a dependency-light local MVP for creating website project configs, editing structured content blocks with rich section forms, validating assets, running placeholder specialist agents, creating backups, and generating live static previews from real template rendering.
 
 ## Current Architecture
 
@@ -140,6 +140,33 @@ Each section has `id`, `type`, `enabled`, `order`, and `content`.
 
 The dashboard includes a basic Content editor for page metadata, page creation/deletion, section creation, section JSON editing, enable/disable, move up/down, and deletion. Array-heavy content, such as services, FAQ, testimonials, and gallery items, is edited as JSON in MJC4.
 
+## MJC5 Rich Section Editors
+
+Phase 5 replaces JSON-first section editing with form-based section editors for:
+
+- Hero
+- Services
+- About
+- Process
+- Projects
+- Gallery
+- Testimonials
+- FAQ
+- Contact
+- Quote request
+- CTA
+
+Repeated items such as services, process steps, projects, gallery images, testimonials, FAQ entries, and quote fields can be added, removed, edited, and reordered with form controls.
+
+An `Advanced JSON editor` remains available as a collapsed fallback for power users. The form editor remains the primary path and validation still runs before saving.
+
+The content editor now shows an unsaved-changes indicator, warns before switching pages or sections with unsaved edits, shows save/build feedback, and includes:
+
+- Save Section
+- Save and Build Preview
+- Build Preview From Content
+- Open Latest Preview
+
 ## Content Rendering Fallback
 
 The renderer prefers `project.content.pages` when present. Existing MJC3 projects without `content` still validate and build because the renderer seeds a compatible content model from project config in memory.
@@ -201,6 +228,7 @@ npm run validate:data
 npm run smoke:phase2
 npm run smoke:phase3
 npm run smoke:phase4
+npm run smoke:phase5
 ```
 
 The Phase 2 smoke test checks templates, project creation, detail fetch, config patch, backups, agents, build metadata, preview path creation, rollback, and data validation.
@@ -208,6 +236,8 @@ The Phase 2 smoke test checks templates, project creation, detail fetch, config 
 The Phase 3 smoke test checks multi-page rendering, generated files, served preview HTML, stronger Verify agent checks, and that Phase 2 smoke still passes.
 
 The Phase 4 smoke test checks content initialization, content page CRUD, section CRUD, authored content rendering, generated preview content, Verify output checks, and cleanup.
+
+The Phase 5 smoke test checks rich-editor-compatible section content for hero, services, FAQ, testimonials, quote request fields, rendered item order, generated preview content, Verify output checks, and cleanup.
 
 Smoke tests now create projects with prefixes such as `smoke-phase2-`, `smoke-phase3-`, and `smoke-phase4-`. Cleanup removes only those smoke-prefixed project records and their backup/build/preview artifacts.
 
@@ -217,15 +247,16 @@ Smoke tests now create projects with prefixes such as `smoke-phase2-`, `smoke-ph
 - No real external deployment yet.
 - Agent checks are rule-based placeholders.
 - Preview generation is static and local, though it now renders real multi-page output.
-- Content arrays are edited as JSON textareas in MJC4.
+- Advanced JSON editing still exists as a fallback.
+- Rich section editors are intentionally simple and do not yet include drag-and-drop.
 - Content is still stored in JSON files, not a database.
 - Visual browser testing may need to be done manually if the sandbox browser fails.
 
 ## Next Roadmap
 
-1. Add richer per-section editor controls instead of JSON textareas.
+1. Add drag-and-drop section and repeated-item ordering.
 2. Add automated accessibility, responsive, link, and security checks.
-3. Add persistent database storage and object storage for production usage.
-4. Add authentication and project ownership.
-5. Add a build queue, logs, retries, and artifact history.
-6. Add explicit deployment workflows with approval gates.
+3. Add image upload/asset picker for gallery, projects, and hero images.
+4. Add persistent database storage and object storage for production usage.
+5. Add authentication and project ownership.
+6. Add a build queue, logs, retries, and artifact history.

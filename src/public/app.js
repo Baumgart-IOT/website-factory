@@ -6,7 +6,9 @@ const state = {
   builds: [],
   content: null,
   selectedPageKey: null,
-  selectedSectionId: null
+  selectedSectionId: null,
+  contentDirty: false,
+  loading: false
 };
 
 const els = {
@@ -25,6 +27,8 @@ const els = {
   backupList: document.querySelector("#backupList"),
   buildList: document.querySelector("#buildList"),
   buildSummary: document.querySelector("#buildSummary"),
+  contentDirtyIndicator: document.querySelector("#contentDirtyIndicator"),
+  contentError: document.querySelector("#contentError"),
   contentPageSelect: document.querySelector("#contentPageSelect"),
   initializeContentButton: document.querySelector("#initializeContentButton"),
   pageForm: document.querySelector("#pageForm"),
@@ -35,6 +39,11 @@ const els = {
   sectionSelect: document.querySelector("#sectionSelect"),
   sectionTypeSelect: document.querySelector("#sectionTypeSelect"),
   sectionForm: document.querySelector("#sectionForm"),
+  sectionFields: document.querySelector("#sectionFields"),
+  advancedJson: document.querySelector(".advanced-json"),
+  saveAndBuildSectionButton: document.querySelector("#saveAndBuildSectionButton"),
+  buildContentButton: document.querySelector("#buildContentButton"),
+  openLatestPreviewButton: document.querySelector("#openLatestPreviewButton"),
   saveSectionButton: document.querySelector("#saveSectionButton"),
   addSectionButton: document.querySelector("#addSectionButton"),
   moveSectionUpButton: document.querySelector("#moveSectionUpButton"),
@@ -60,6 +69,10 @@ function bindEvents() {
   els.logoForm.addEventListener("submit", uploadLogo);
   els.initializeContentButton.addEventListener("click", initializeContent);
   els.contentPageSelect.addEventListener("change", () => {
+    if (!confirmDiscardUnsaved()) {
+      els.contentPageSelect.value = state.selectedPageKey || "";
+      return;
+    }
     state.selectedPageKey = els.contentPageSelect.value;
     state.selectedSectionId = null;
     renderContentEditor();
@@ -68,10 +81,29 @@ function bindEvents() {
   els.deletePageButton.addEventListener("click", deletePage);
   els.addPageForm.addEventListener("submit", addPage);
   els.sectionSelect.addEventListener("change", () => {
+    if (!confirmDiscardUnsaved()) {
+      els.sectionSelect.value = state.selectedSectionId || "";
+      return;
+    }
     state.selectedSectionId = els.sectionSelect.value;
     renderSectionEditor();
   });
+  els.sectionTypeSelect.addEventListener("change", () => {
+    if (!confirmDiscardUnsaved()) {
+      const section = getSelectedSection();
+      els.sectionTypeSelect.value = section?.type || "hero";
+      return;
+    }
+    renderSectionEditorFields({ type: els.sectionTypeSelect.value, content: defaultSectionContent(els.sectionTypeSelect.value) });
+    markContentDirty();
+  });
+  els.pageForm.addEventListener("input", markContentDirty);
+  els.sectionForm.addEventListener("input", markContentDirty);
   els.sectionForm.addEventListener("submit", saveSection);
+  els.sectionFields.addEventListener("click", handleSectionFieldClick);
+  els.saveAndBuildSectionButton.addEventListener("click", saveSectionAndBuild);
+  els.buildContentButton.addEventListener("click", buildPreview);
+  els.openLatestPreviewButton.addEventListener("click", openLatestPreview);
   els.addSectionButton.addEventListener("click", addSection);
   els.moveSectionUpButton.addEventListener("click", () => moveSection("up"));
   els.moveSectionDownButton.addEventListener("click", () => moveSection("down"));
@@ -79,6 +111,11 @@ function bindEvents() {
   els.createBackupButton.addEventListener("click", createBackup);
   els.buildButton.addEventListener("click", buildPreview);
   els.refreshButton.addEventListener("click", refreshAll);
+  window.addEventListener("beforeunload", (event) => {
+    if (!state.contentDirty) return;
+    event.preventDefault();
+    event.returnValue = "";
+  });
 }
 
 async function refreshAll() {
@@ -222,6 +259,7 @@ async function restoreBackup(backupId) {
 async function runAgent(agentName) {
   if (!state.selectedProject) return;
   try {
+    setLoading(true, `${agentName} agent running...`);
     const { project } = await api(`/api/projects/${state.selectedProject.id}/agents/${agentName}`, { method: "POST" });
     state.selectedProject = project;
     upsertProject(project);
@@ -230,18 +268,38 @@ async function runAgent(agentName) {
     showNotice(`${agentName} agent completed.`);
   } catch (error) {
     showNotice(error.message);
+  } finally {
+    setLoading(false);
   }
 }
 
 async function buildPreview() {
   if (!state.selectedProject) return;
+  if (state.contentDirty && !window.confirm("You have unsaved content changes. Build the last saved content anyway?")) return;
   try {
+    setLoading(true, "Building preview...");
     const { project, build } = await api(`/api/projects/${state.selectedProject.id}/build`, { method: "POST" });
     await openProject(project.id);
     showNotice(`Build ${build.buildId} created.`);
   } catch (error) {
     showNotice(error.message);
+  } finally {
+    setLoading(false);
   }
+}
+
+async function saveSectionAndBuild() {
+  const saved = await saveSection();
+  if (saved) await buildPreview();
+}
+
+function openLatestPreview() {
+  const latest = state.builds[0] || state.selectedProject?.builds?.[0];
+  if (!latest?.previewPath) {
+    showNotice("No preview exists yet. Build a preview first.");
+    return;
+  }
+  window.open(latest.previewPath, "_blank", "noreferrer");
 }
 
 async function initializeContent() {
@@ -285,6 +343,7 @@ async function savePage(event) {
   if (!state.selectedProject || !state.selectedPageKey) return;
   const form = new FormData(els.pageForm);
   try {
+    setLoading(true, "Saving page...");
     const { content } = await api(`/api/projects/${state.selectedProject.id}/content/pages/${state.selectedPageKey}`, {
       method: "PATCH",
       body: {
@@ -297,10 +356,13 @@ async function savePage(event) {
       }
     });
     state.content = content;
+    setContentDirty(false);
     renderContentEditor();
     showNotice("Page metadata saved.");
   } catch (error) {
     showNotice(error.message);
+  } finally {
+    setLoading(false);
   }
 }
 
@@ -336,16 +398,18 @@ async function addSection() {
 }
 
 async function saveSection(event) {
-  event.preventDefault();
+  event?.preventDefault();
   if (!state.selectedProject || !state.selectedPageKey || !state.selectedSectionId) return;
   const form = new FormData(els.sectionForm);
   let content;
   try {
-    content = JSON.parse(text(form, "section.content") || "{}");
-  } catch {
-    return showNotice("Section content must be valid JSON.");
+    content = collectSectionEditorValues(text(form, "section.type"), els.sectionForm);
+  } catch (error) {
+    showContentError(error.message);
+    return false;
   }
   try {
+    setLoading(true, "Saving section...");
     const { content: updated } = await api(`/api/projects/${state.selectedProject.id}/content/pages/${state.selectedPageKey}/sections/${state.selectedSectionId}`, {
       method: "PATCH",
       body: {
@@ -356,10 +420,17 @@ async function saveSection(event) {
       }
     });
     state.content = updated;
+    setContentDirty(false);
+    clearContentError();
     renderContentEditor();
     showNotice("Section saved.");
+    return true;
   } catch (error) {
+    showContentError(error.message);
     showNotice(error.message);
+    return false;
+  } finally {
+    setLoading(false);
   }
 }
 
@@ -418,7 +489,10 @@ function renderProjects() {
   }).join("");
 
   document.querySelectorAll("[data-open-project]").forEach((button) => {
-    button.addEventListener("click", () => openProject(button.dataset.openProject));
+    button.addEventListener("click", () => {
+      if (!confirmDiscardUnsaved()) return;
+      openProject(button.dataset.openProject);
+    });
   });
 }
 
@@ -577,7 +651,10 @@ function renderContentEditor() {
     els.addSectionButton,
     els.moveSectionUpButton,
     els.moveSectionDownButton,
-    els.deleteSectionButton
+    els.deleteSectionButton,
+    els.saveAndBuildSectionButton,
+    els.buildContentButton,
+    els.openLatestPreviewButton
   ].forEach((button) => { button.disabled = !enabled; });
 
   els.sectionTypeSelect.innerHTML = supportedSectionTypes().map((type) => `<option value="${type}">${type}</option>`).join("");
@@ -617,11 +694,14 @@ function renderSectionEditor() {
   const section = sections.find((item) => item.id === state.selectedSectionId);
   const hasSection = Boolean(section);
   els.saveSectionButton.disabled = !hasSection;
+  els.saveAndBuildSectionButton.disabled = !hasSection;
   els.moveSectionUpButton.disabled = !hasSection;
   els.moveSectionDownButton.disabled = !hasSection;
   els.deleteSectionButton.disabled = !hasSection;
+  els.openLatestPreviewButton.disabled = !Boolean((state.builds[0] || state.selectedProject?.builds?.[0])?.previewPath);
   if (!section) {
     els.sectionForm.reset();
+    els.sectionFields.innerHTML = `<p class="empty">Add a section to start editing content.</p>`;
     return;
   }
 
@@ -629,6 +709,7 @@ function renderSectionEditor() {
   els.sectionForm.elements["section.order"].value = section.order;
   els.sectionForm.elements["section.enabled"].checked = section.enabled;
   els.sectionForm.elements["section.content"].value = JSON.stringify(section.content || {}, null, 2);
+  renderSectionEditorFields(section);
 }
 
 function upsertProject(project) {
@@ -659,6 +740,308 @@ function setField(name, value) {
 function setPageField(name, value) {
   const field = els.pageForm.elements[name];
   if (field) field.value = value || "";
+}
+
+function renderSectionEditorFields(section) {
+  const schema = getSectionEditorSchema(section.type);
+  const content = { ...defaultSectionContent(section.type), ...(section.content || {}) };
+  els.sectionFields.innerHTML = `
+    <div class="section-schema-grid">
+      ${schema.fields.map((field) => renderField(field, content[field.name])).join("")}
+    </div>
+    ${schema.arrays.map((array) => renderArrayEditor(array, content[array.name] || [])).join("")}
+  `;
+  els.sectionForm.elements["section.content"].value = JSON.stringify(content, null, 2);
+  els.sectionFields.querySelectorAll("input, textarea, select").forEach((field) => {
+    field.addEventListener("input", () => {
+      syncAdvancedJsonFromForm();
+      markContentDirty();
+    });
+    field.addEventListener("change", () => {
+      syncAdvancedJsonFromForm();
+      markContentDirty();
+    });
+  });
+}
+
+function renderField(field, value) {
+  if (field.kind === "textarea") return renderTextarea(field.name, field.label, value || "");
+  if (field.kind === "checkbox") return renderCheckbox(field.name, field.label, Boolean(value));
+  if (field.kind === "select") return renderSelect(field.name, field.label, field.options, value || field.options[0]);
+  return renderTextInput(field.name, field.label, value || "");
+}
+
+function renderTextInput(name, label, value = "") {
+  return `<label>${escapeHtml(label)} <input data-field="${escapeHtml(name)}" value="${escapeHtml(value)}" /></label>`;
+}
+
+function renderTextarea(name, label, value = "") {
+  return `<label>${escapeHtml(label)} <textarea data-field="${escapeHtml(name)}" rows="3">${escapeHtml(value)}</textarea></label>`;
+}
+
+function renderCheckbox(name, label, checked = false) {
+  return `<label class="toggle-row"><input data-field="${escapeHtml(name)}" type="checkbox" ${checked ? "checked" : ""} /> ${escapeHtml(label)}</label>`;
+}
+
+function renderSelect(name, label, options, value = "") {
+  return `<label>${escapeHtml(label)} <select data-field="${escapeHtml(name)}">${options.map((option) => `<option value="${escapeHtml(option)}" ${option === value ? "selected" : ""}>${escapeHtml(option)}</option>`).join("")}</select></label>`;
+}
+
+function renderArrayEditor(array, items) {
+  const normalized = Array.isArray(items) ? items : [];
+  return `<section class="array-editor" data-array="${escapeHtml(array.name)}">
+    <div class="array-editor-heading">
+      <h4>${escapeHtml(array.label)}</h4>
+      <button type="button" data-array-action="add" data-array="${escapeHtml(array.name)}">Add item</button>
+    </div>
+    <div class="array-items">
+      ${normalized.map((item, index) => renderArrayItem(array, item, index)).join("") || `<p class="empty">No items yet.</p>`}
+    </div>
+  </section>`;
+}
+
+function renderArrayItem(array, item, index) {
+  const value = denormalizeArrayItem(array, item);
+  return `<article class="array-item" data-array="${escapeHtml(array.name)}" data-index="${index}">
+    <div class="array-item-actions">
+      <strong>${escapeHtml(array.itemLabel)} ${index + 1}</strong>
+      <button type="button" data-array-action="up" data-array="${escapeHtml(array.name)}" data-index="${index}">Up</button>
+      <button type="button" data-array-action="down" data-array="${escapeHtml(array.name)}" data-index="${index}">Down</button>
+      <button type="button" data-array-action="remove" data-array="${escapeHtml(array.name)}" data-index="${index}">Remove</button>
+    </div>
+    <div class="form-grid">
+      ${array.fields.map((field) => renderArrayField(array.name, index, field, value[field.name])).join("")}
+    </div>
+  </article>`;
+}
+
+function renderArrayField(arrayName, index, field, value) {
+  const attr = `data-array-field="${escapeHtml(arrayName)}" data-index="${index}" data-field="${escapeHtml(field.name)}"`;
+  if (field.kind === "textarea") return `<label>${escapeHtml(field.label)} <textarea ${attr} rows="3">${escapeHtml(value || "")}</textarea></label>`;
+  if (field.kind === "checkbox") return `<label class="toggle-row"><input ${attr} type="checkbox" ${value ? "checked" : ""} /> ${escapeHtml(field.label)}</label>`;
+  if (field.kind === "select") return `<label>${escapeHtml(field.label)} <select ${attr}>${field.options.map((option) => `<option value="${escapeHtml(option)}" ${option === value ? "selected" : ""}>${escapeHtml(option)}</option>`).join("")}</select></label>`;
+  return `<label>${escapeHtml(field.label)} <input ${attr} value="${escapeHtml(value || "")}" /></label>`;
+}
+
+function handleSectionFieldClick(event) {
+  const button = event.target.closest("[data-array-action]");
+  if (!button) return;
+  const arrayName = button.dataset.array;
+  const action = button.dataset.arrayAction;
+  const index = Number(button.dataset.index);
+  const section = getSelectedSection();
+  if (!section) return;
+  const content = collectSectionEditorValues(els.sectionTypeSelect.value, els.sectionForm, { allowAdvancedJson: false });
+  const schema = getSectionEditorSchema(els.sectionTypeSelect.value);
+  const array = schema.arrays.find((item) => item.name === arrayName);
+  content[arrayName] = Array.isArray(content[arrayName]) ? content[arrayName] : [];
+  if (action === "add") content[arrayName] = addArrayItem(content[arrayName], defaultArrayItem(array));
+  if (action === "remove") content[arrayName] = removeArrayItem(content[arrayName], index);
+  if (action === "up") content[arrayName] = moveArrayItem(content[arrayName], index, -1);
+  if (action === "down") content[arrayName] = moveArrayItem(content[arrayName], index, 1);
+  renderSectionEditorFields({ type: els.sectionTypeSelect.value, content });
+  markContentDirty();
+}
+
+function moveArrayItem(items, index, delta) {
+  const copy = [...items];
+  const target = index + delta;
+  if (target < 0 || target >= copy.length) return copy;
+  [copy[index], copy[target]] = [copy[target], copy[index]];
+  return copy;
+}
+
+function addArrayItem(items, item) {
+  return [...items, item];
+}
+
+function removeArrayItem(items, index) {
+  return items.filter((_, itemIndex) => itemIndex !== index);
+}
+
+function collectSectionEditorValues(sectionType, formElement, options = {}) {
+  const schema = getSectionEditorSchema(sectionType);
+  const content = {};
+
+  for (const field of schema.fields) {
+    const input = formElement.querySelector(`[data-field="${field.name}"]:not([data-array-field])`);
+    if (!input) continue;
+    content[field.name] = readInputValue(input, field);
+  }
+
+  for (const array of schema.arrays) {
+    const items = [];
+    formElement.querySelectorAll(`.array-item[data-array="${array.name}"]`).forEach((itemEl) => {
+      const item = {};
+      for (const field of array.fields) {
+        const input = itemEl.querySelector(`[data-array-field="${array.name}"][data-field="${field.name}"]`);
+        if (input) item[field.name] = readInputValue(input, field);
+      }
+      items.push(normalizeArrayItem(array, item));
+    });
+    content[array.name] = items;
+  }
+
+  if (options.allowAdvancedJson !== false && els.advancedJson?.open) {
+    let advanced;
+    try {
+      advanced = JSON.parse(text(new FormData(formElement), "section.content") || "{}");
+    } catch {
+      throw new Error("Advanced JSON editor contains invalid JSON.");
+    }
+    Object.assign(content, advanced);
+  }
+
+  validateSectionEditorValues(sectionType, content);
+  return content;
+}
+
+function readInputValue(input, field) {
+  if (field.kind === "checkbox") return Boolean(input.checked);
+  return String(input.value || "").trim();
+}
+
+function syncAdvancedJsonFromForm() {
+  try {
+    const content = collectSectionEditorValues(els.sectionTypeSelect.value, els.sectionForm, { allowAdvancedJson: false });
+    els.sectionForm.elements["section.content"].value = JSON.stringify(content, null, 2);
+    clearContentError();
+  } catch (error) {
+    showContentError(error.message);
+  }
+}
+
+function validateSectionEditorValues(sectionType, content) {
+  const schema = getSectionEditorSchema(sectionType);
+  for (const array of schema.arrays) {
+    if (!Array.isArray(content[array.name])) throw new Error(`${array.label} must be an array.`);
+  }
+  for (const [key, value] of Object.entries(content)) {
+    if (/url$/i.test(key) && value && !isValidUrl(value)) throw new Error(`${key} must be an internal path or http/https URL.`);
+    if (/email/i.test(key) && value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) throw new Error(`${key} must be a reasonable email address.`);
+  }
+  if (sectionType === "quote_request") {
+    const allowed = new Set(["text", "email", "phone", "textarea", "select", "checkbox"]);
+    for (const field of content.fields || []) {
+      if (!allowed.has(field.type)) throw new Error("Quote request field type is not supported.");
+      if (typeof field.required !== "boolean") throw new Error("Quote request required values must be booleans.");
+    }
+  }
+}
+
+function isValidUrl(value) {
+  return value.startsWith("/") || value.startsWith("#") || /^https?:\/\/[^\s<>"']+$/i.test(value);
+}
+
+function getSectionEditorSchema(sectionType) {
+  const textField = (name, label) => ({ name, label, kind: "text" });
+  const area = (name, label) => ({ name, label, kind: "textarea" });
+  const checkbox = (name, label) => ({ name, label, kind: "checkbox" });
+  const select = (name, label, options) => ({ name, label, kind: "select", options });
+  const schemas = {
+    hero: {
+      fields: [textField("eyebrow", "Eyebrow"), textField("heading", "Heading"), textField("subheading", "Subheading"), area("body", "Body"), textField("primaryButtonText", "Primary button text"), textField("primaryButtonUrl", "Primary button URL"), textField("secondaryButtonText", "Secondary button text"), textField("secondaryButtonUrl", "Secondary button URL"), textField("imageUrl", "Image URL")],
+      arrays: []
+    },
+    services: {
+      fields: [textField("heading", "Heading"), textField("subheading", "Subheading")],
+      arrays: [{ name: "items", label: "Service Items", itemLabel: "Service", fields: [textField("title", "Title"), area("description", "Description"), textField("icon", "Icon")] }]
+    },
+    about: {
+      fields: [textField("heading", "Heading"), area("body", "Body")],
+      arrays: [{ name: "highlights", label: "Highlights", itemLabel: "Highlight", fields: [textField("text", "Text")] }]
+    },
+    process: {
+      fields: [textField("heading", "Heading")],
+      arrays: [{ name: "steps", label: "Steps", itemLabel: "Step", fields: [textField("title", "Title"), area("description", "Description")] }]
+    },
+    projects: {
+      fields: [textField("heading", "Heading")],
+      arrays: [{ name: "items", label: "Project Items", itemLabel: "Project", fields: [textField("title", "Title"), area("description", "Description"), textField("imageUrl", "Image URL"), textField("linkUrl", "Link URL")] }]
+    },
+    gallery: {
+      fields: [textField("heading", "Heading")],
+      arrays: [{ name: "images", label: "Images", itemLabel: "Image", fields: [textField("imageUrl", "Image URL"), textField("alt", "Alt text")] }]
+    },
+    testimonials: {
+      fields: [textField("heading", "Heading")],
+      arrays: [{ name: "items", label: "Testimonials", itemLabel: "Testimonial", fields: [area("quote", "Quote"), textField("name", "Name"), textField("role", "Role")] }]
+    },
+    faq: {
+      fields: [textField("heading", "Heading")],
+      arrays: [{ name: "items", label: "FAQ Items", itemLabel: "FAQ", fields: [textField("question", "Question"), area("answer", "Answer")] }]
+    },
+    contact: {
+      fields: [textField("heading", "Heading"), area("body", "Body"), textField("email", "Email"), textField("phone", "Phone"), area("address", "Address")],
+      arrays: []
+    },
+    quote_request: {
+      fields: [textField("heading", "Heading"), area("body", "Body")],
+      arrays: [{ name: "fields", label: "Form Fields", itemLabel: "Field", fields: [textField("label", "Label"), select("type", "Type", ["text", "email", "phone", "textarea", "select", "checkbox"]), checkbox("required", "Required")] }]
+    },
+    cta: {
+      fields: [textField("heading", "Heading"), area("body", "Body"), textField("buttonText", "Button text"), textField("buttonUrl", "Button URL")],
+      arrays: []
+    }
+  };
+  return schemas[sectionType] || schemas.cta;
+}
+
+function defaultArrayItem(array) {
+  const item = {};
+  for (const field of array.fields) {
+    item[field.name] = field.kind === "checkbox" ? false : field.kind === "select" ? field.options[0] : "";
+  }
+  return normalizeArrayItem(array, item);
+}
+
+function normalizeArrayItem(array, item) {
+  if (array.name === "highlights") return item.text || "";
+  if (array.name === "fields") return { label: item.label || "Field", type: item.type || "text", required: Boolean(item.required) };
+  return item;
+}
+
+function denormalizeArrayItem(array, item) {
+  if (array.name === "highlights" && typeof item === "string") return { text: item };
+  if (array.name === "fields" && typeof item === "string") return { label: item, type: "text", required: false };
+  return item || {};
+}
+
+function markContentDirty() {
+  setContentDirty(true);
+}
+
+function setContentDirty(value) {
+  state.contentDirty = Boolean(value);
+  els.contentDirtyIndicator.hidden = !state.contentDirty;
+}
+
+function confirmDiscardUnsaved() {
+  if (!state.contentDirty) return true;
+  return window.confirm("You have unsaved content changes. Discard them?");
+}
+
+function showContentError(message) {
+  els.contentError.hidden = false;
+  els.contentError.textContent = message;
+}
+
+function clearContentError() {
+  els.contentError.hidden = true;
+  els.contentError.textContent = "";
+}
+
+function setLoading(value, message = "Working...") {
+  state.loading = Boolean(value);
+  document.querySelectorAll("button").forEach((button) => {
+    if (value) {
+      button.dataset.wasDisabled = button.disabled ? "true" : "false";
+      button.disabled = true;
+    } else if (button.dataset.wasDisabled === "false") {
+      button.disabled = false;
+    }
+  });
+  if (value) showNotice(message);
 }
 
 function text(form, name) {
