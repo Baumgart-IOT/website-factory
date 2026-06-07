@@ -6,6 +6,14 @@ import { paths } from "./config/paths.js";
 import { createProject, listProjects, getProject, updateProjectConfig } from "./services/projectService.js";
 import { getTemplate, listTemplates } from "./services/templateService.js";
 import { uploadLogo } from "./services/uploadService.js";
+import {
+  uploadProjectMedia,
+  deleteProjectMedia,
+  getProjectMediaAsset,
+  getProjectMediaUsage,
+  listProjectMedia,
+  markProjectMediaUsage
+} from "./services/mediaUploadService.js";
 import { ensureStorage } from "./storage/jsonStore.js";
 import { readBody } from "./utils/http.js";
 import { createProjectBackup, listProjectBackups, rollbackProject } from "./services/backupService.js";
@@ -54,6 +62,11 @@ const server = http.createServer(async (req, res) => {
 
     if (url.pathname.startsWith("/uploads/logos/")) {
       await serveFromDirectory(res, paths.logos, url.pathname.replace(/^\/uploads\/logos\//, ""));
+      return;
+    }
+
+    if (url.pathname.startsWith("/uploads/projects/")) {
+      await serveFromDirectory(res, paths.projectMedia, url.pathname.replace(/^\/uploads\/projects\//, ""));
       return;
     }
 
@@ -178,6 +191,45 @@ async function handleApi(req, res, url) {
   const logoMatch = url.pathname.match(/^\/api\/projects\/([a-zA-Z0-9-]+)\/logo$/);
   if (req.method === "POST" && logoMatch) {
     sendJson(res, 200, { project: await uploadLogo(req, logoMatch[1]) });
+    return;
+  }
+
+  const mediaUsageMatch = url.pathname.match(/^\/api\/projects\/([a-zA-Z0-9-]+)\/media\/usage$/);
+  if (req.method === "GET" && mediaUsageMatch) {
+    sendJson(res, 200, await getProjectMediaUsage(mediaUsageMatch[1]));
+    return;
+  }
+
+  const mediaCollectionMatch = url.pathname.match(/^\/api\/projects\/([a-zA-Z0-9-]+)\/media$/);
+  if (req.method === "GET" && mediaCollectionMatch) {
+    const { assets } = await listProjectMedia(mediaCollectionMatch[1]);
+    sendJson(res, 200, { assets });
+    return;
+  }
+
+  if (req.method === "POST" && mediaCollectionMatch) {
+    const kind = url.searchParams.get("kind") || "image";
+    const { asset, project } = await uploadProjectMedia(req, mediaCollectionMatch[1], kind);
+    sendJson(res, 201, { asset, project, assets: project.media?.assets || [] });
+    return;
+  }
+
+  const mediaUseMatch = url.pathname.match(/^\/api\/projects\/([a-zA-Z0-9-]+)\/media\/([a-zA-Z0-9_-]+)\/use$/);
+  if (req.method === "POST" && mediaUseMatch) {
+    const payload = await optionalJsonBody(req);
+    sendJson(res, 200, await markProjectMediaUsage(mediaUseMatch[1], mediaUseMatch[2], payload.location));
+    return;
+  }
+
+  const mediaItemMatch = url.pathname.match(/^\/api\/projects\/([a-zA-Z0-9-]+)\/media\/([a-zA-Z0-9_-]+)$/);
+  if (req.method === "GET" && mediaItemMatch) {
+    sendJson(res, 200, await getProjectMediaAsset(mediaItemMatch[1], mediaItemMatch[2]));
+    return;
+  }
+
+  if (req.method === "DELETE" && mediaItemMatch) {
+    const force = url.searchParams.get("force") === "true";
+    sendJson(res, 200, await deleteProjectMedia(mediaItemMatch[1], mediaItemMatch[2], { force }));
     return;
   }
 

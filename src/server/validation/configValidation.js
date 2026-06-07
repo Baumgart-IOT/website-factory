@@ -25,6 +25,8 @@ export function buildDefaultConfig(value, template) {
     branding: {
       logoUrl: "",
       faviconUrl: "",
+      logoAssetId: "",
+      faviconAssetId: "",
       primaryColor: paletteToPrimary(value.palette),
       accentColor: "#d88c4a",
       backgroundColor: "#fffdfa",
@@ -146,7 +148,7 @@ function validateBrandingPatch(value, errors) {
     errors.push("Branding config must be an object.");
     return;
   }
-  for (const key of ["logoUrl", "faviconUrl", "headingFont", "bodyFont"]) validateString(value, key, 0, 120, errors);
+  for (const key of ["logoUrl", "faviconUrl", "logoAssetId", "faviconAssetId", "headingFont", "bodyFont"]) validateString(value, key, 0, 160, errors);
   for (const key of ["primaryColor", "accentColor", "backgroundColor"]) {
     if (value[key] !== undefined && !/^#[0-9a-fA-F]{6}$/.test(value[key])) errors.push(`${key} must be a valid hex colour.`);
   }
@@ -228,6 +230,8 @@ function buildDefaultConfigFromProject(project) {
     branding: {
       logoUrl: project.assets?.logo?.storedName ? `/uploads/logos/${project.assets.logo.storedName}` : "",
       faviconUrl: "",
+      logoAssetId: "",
+      faviconAssetId: "",
       primaryColor: paletteToPrimary(project.site?.palette),
       accentColor: "#d88c4a",
       backgroundColor: "#fffdfa",

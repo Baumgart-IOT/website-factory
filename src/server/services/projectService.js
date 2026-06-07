@@ -58,6 +58,9 @@ export async function createProject(input) {
     assets: {
       logo: null
     },
+    media: {
+      assets: []
+    },
     config: buildDefaultConfig(value, template),
     agents: structuredClone(initialAgents),
     builds: []
@@ -93,7 +96,13 @@ function normalizeProject(project) {
     ...(project.agents || {})
   };
   project.builds = project.builds || [];
+  project.media = normalizeMedia(project.media);
   return syncProjectFromConfig(project);
+}
+
+function normalizeMedia(media) {
+  if (!media || typeof media !== "object" || !Array.isArray(media.assets)) return { assets: [] };
+  return { assets: media.assets };
 }
 
 function emptyAgent(label, detail) {

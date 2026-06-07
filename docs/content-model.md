@@ -151,6 +151,12 @@ FAQ:
 }
 ```
 
+## Image URL Fields (MJC6)
+
+`hero.imageUrl`, `projects.items[].imageUrl`, and `gallery.images[].imageUrl` remain plain string URLs in the content model — the storage format is unchanged. MJC6 only changes how editors populate them: the dashboard's `image` field kind adds a "Choose from media" button that opens the asset picker and writes the selected media asset's URL into the field (see `docs/dashboard-editor.md` and `docs/media-library.md`). Values can still be typed manually as internal paths (`/...`) or `http(s)://` URLs — `isValidUrl` validates both client- and server-side.
+
+When an image URL points at an uploaded media asset (`/uploads/projects/<projectId>/...`), the Verify agent's `checkMediaReferences` check confirms the referenced asset still exists in the project's media library; see `docs/media-library.md` for details.
+
 ## Rendering Fallback
 
 The renderer prefers `project.content.pages`. If a project has no persisted content, the renderer seeds compatible content from existing project config in memory so old MJC3 projects continue to build.

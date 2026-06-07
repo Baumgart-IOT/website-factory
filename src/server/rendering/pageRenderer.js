@@ -12,6 +12,7 @@ export function renderPage({ page, navPages, config, template, cssPath, scriptPa
     <meta property="og:description" content="${escapeHtml(description)}">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="${escapeHtml(config.business.name)}">
+    ${faviconLink(config)}
     <link rel="stylesheet" href="${cssPath}">
   </head>
   <body data-template="${escapeHtml(config.template.selected)}">
@@ -21,6 +22,13 @@ export function renderPage({ page, navPages, config, template, cssPath, scriptPa
     <script src="${scriptPath}" defer></script>
   </body>
 </html>`;
+}
+
+function faviconLink(config) {
+  const faviconUrl = config.branding?.faviconUrl;
+  if (!faviconUrl) return "";
+  const type = faviconUrl.toLowerCase().endsWith(".svg") ? "image/svg+xml" : faviconUrl.toLowerCase().endsWith(".ico") ? "image/x-icon" : "image/png";
+  return `<link rel="icon" type="${type}" href="${escapeAttribute(faviconUrl)}">`;
 }
 
 export function renderHeader(currentPage, config, navPages = config.pages) {

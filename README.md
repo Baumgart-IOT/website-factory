@@ -19,8 +19,9 @@ data/projects/            Project JSON records
 data/backups/{projectId}/ Backup snapshots
 data/builds/{projectId}/  Build metadata
 previews/{projectId}/{buildId}/ Static preview files
-uploads/logos/            Validated logo uploads
-docs/                     Checkpoints, OpenAPI, GPT setup, visual test checklist
+uploads/logos/            Validated logo uploads (legacy single-logo flow)
+uploads/projects/{projectId}/ Validated per-project media library uploads
+docs/                     Checkpoints, OpenAPI, GPT setup, visual test checklist, media library guide
 ```
 
 ## Setup
@@ -167,6 +168,19 @@ The content editor now shows an unsaved-changes indicator, warns before switchin
 - Build Preview From Content
 - Open Latest Preview
 
+## MJC6 Media Library & Asset Picker
+
+Phase 6 adds a per-project media library so users can upload validated images once and reuse them everywhere instead of typing raw URLs:
+
+- A **Media Library** dashboard panel for uploading images/logos/favicons, browsing them as cards (thumbnail, kind, size, validation status), and deleting them (with in-use protection and a force-delete confirmation).
+- An **asset picker** modal (`<dialog>`) that lets users choose an existing image asset for any image field.
+- A new `image` field kind in the section editor schema, applied to hero, projects, and gallery image URLs — each renders a "Choose from media" button alongside the existing text input.
+- Branding **logo** and **favicon** fields that support choosing from the library, uploading on the fly, previewing, and clearing — backed by new `branding.logoAssetId` / `branding.faviconAssetId` config fields.
+- Renderer support for a generated `<link rel="icon">` favicon tag.
+- Verify-agent checks that flag missing or unreferenced media assets.
+
+Uploads are validated end-to-end (extension allowlist, size limits, binary signature checks, and SVG sanitization) before being persisted and served from `/uploads/projects/{projectId}/...`. See `docs/media-library.md` for full details on the data model, validation rules, API endpoints, and UI wiring.
+
 ## Content Rendering Fallback
 
 The renderer prefers `project.content.pages` when present. Existing MJC3 projects without `content` still validate and build because the renderer seeds a compatible content model from project config in memory.
@@ -194,6 +208,12 @@ Use `POST /api/projects/:id/content/initialize` to persist seeded content into a
 - `DELETE /api/projects/:id/content/pages/:pageKey/sections/:sectionId`
 - `POST /api/projects/:id/content/pages/:pageKey/sections/:sectionId/move`
 - `POST /api/projects/:id/logo`
+- `GET /api/projects/:id/media`
+- `POST /api/projects/:id/media?kind=image|logo|favicon`
+- `GET /api/projects/:id/media/:assetId`
+- `DELETE /api/projects/:id/media/:assetId[?force=true]`
+- `POST /api/projects/:id/media/:assetId/use`
+- `GET /api/projects/:id/media/usage`
 - `POST /api/projects/:id/backups`
 - `GET /api/projects/:id/backups`
 - `POST /api/projects/:id/rollback/:backupId`
@@ -229,6 +249,7 @@ npm run smoke:phase2
 npm run smoke:phase3
 npm run smoke:phase4
 npm run smoke:phase5
+npm run smoke:phase6
 ```
 
 The Phase 2 smoke test checks templates, project creation, detail fetch, config patch, backups, agents, build metadata, preview path creation, rollback, and data validation.
@@ -239,7 +260,9 @@ The Phase 4 smoke test checks content initialization, content page CRUD, section
 
 The Phase 5 smoke test checks rich-editor-compatible section content for hero, services, FAQ, testimonials, quote request fields, rendered item order, generated preview content, Verify output checks, and cleanup.
 
-Smoke tests now create projects with prefixes such as `smoke-phase2-`, `smoke-phase3-`, and `smoke-phase4-`. Cleanup removes only those smoke-prefixed project records and their backup/build/preview artifacts.
+The Phase 6 smoke test checks the media library end to end: empty-library bootstrap, validated image/logo/favicon uploads, rejection of spoofed/dangerous/unsafe-SVG uploads, asset listing and fetching, static media serving, branding logo/favicon assignment via uploaded assets, attaching an uploaded image to page content, usage tracking, generated preview references (hero image, logo, favicon link), Verify agent media checks, in-use delete protection with force-delete, and cleanup.
+
+Smoke tests now create projects with prefixes such as `smoke-phase2-`, `smoke-phase3-`, `smoke-phase4-`, `smoke-phase5-`, and `smoke-phase6-`. Cleanup removes only those smoke-prefixed project records and their backup/build/preview/media artifacts.
 
 ## Known Limitations
 
@@ -251,12 +274,14 @@ Smoke tests now create projects with prefixes such as `smoke-phase2-`, `smoke-ph
 - Rich section editors are intentionally simple and do not yet include drag-and-drop.
 - Content is still stored in JSON files, not a database.
 - Visual browser testing may need to be done manually if the sandbox browser fails.
+- The media library has no authentication — anyone with dashboard access can manage any project's assets.
+- The asset picker only surfaces image-kind assets; SVG uploads are sanitized but still rendered inline as-is.
 
 ## Next Roadmap
 
 1. Add drag-and-drop section and repeated-item ordering.
 2. Add automated accessibility, responsive, link, and security checks.
-3. Add image upload/asset picker for gallery, projects, and hero images.
-4. Add persistent database storage and object storage for production usage.
-5. Add authentication and project ownership.
-6. Add a build queue, logs, retries, and artifact history.
+3. Add persistent database storage and object storage for production usage.
+4. Add authentication and project ownership.
+5. Add a build queue, logs, retries, and artifact history.
+6. Add real contact/quote form submission handling.

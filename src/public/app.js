@@ -4,11 +4,13 @@ const state = {
   selectedProject: null,
   backups: [],
   builds: [],
+  media: [],
   content: null,
   selectedPageKey: null,
   selectedSectionId: null,
   contentDirty: false,
-  loading: false
+  loading: false,
+  assetPicker: { onSelect: null }
 };
 
 const els = {
@@ -53,7 +55,15 @@ const els = {
   uploadLogoButton: document.querySelector("#uploadLogoButton"),
   createBackupButton: document.querySelector("#createBackupButton"),
   buildButton: document.querySelector("#buildButton"),
-  refreshButton: document.querySelector("#refreshButton")
+  refreshButton: document.querySelector("#refreshButton"),
+  mediaError: document.querySelector("#mediaError"),
+  mediaUploadForm: document.querySelector("#mediaUploadForm"),
+  mediaUploadButton: document.querySelector("#mediaUploadButton"),
+  mediaGrid: document.querySelector("#mediaGrid"),
+  assetPickerDialog: document.querySelector("#assetPickerDialog"),
+  assetPickerCloseButton: document.querySelector("#assetPickerCloseButton"),
+  assetPickerEmpty: document.querySelector("#assetPickerEmpty"),
+  assetPickerGrid: document.querySelector("#assetPickerGrid")
 };
 
 await boot();
@@ -111,6 +121,14 @@ function bindEvents() {
   els.createBackupButton.addEventListener("click", createBackup);
   els.buildButton.addEventListener("click", buildPreview);
   els.refreshButton.addEventListener("click", refreshAll);
+  els.mediaUploadForm.addEventListener("submit", uploadMedia);
+  els.mediaGrid.addEventListener("click", handleMediaGridClick);
+  els.assetPickerCloseButton.addEventListener("click", closeAssetPicker);
+  els.assetPickerGrid.addEventListener("click", handleAssetPickerClick);
+  els.assetPickerDialog.addEventListener("click", (event) => {
+    if (event.target === els.assetPickerDialog) closeAssetPicker();
+  });
+  els.configForm.addEventListener("click", handleBrandingMediaFieldClick);
   window.addEventListener("beforeunload", (event) => {
     if (!state.contentDirty) return;
     event.preventDefault();
@@ -152,16 +170,18 @@ async function createProject(event) {
 }
 
 async function openProject(projectId) {
-  const [{ project }, { backups }, { builds }, contentResponse] = await Promise.all([
+  const [{ project }, { backups }, { builds }, contentResponse, mediaResponse] = await Promise.all([
     api(`/api/projects/${projectId}`),
     api(`/api/projects/${projectId}/backups`),
     api(`/api/projects/${projectId}/builds`),
-    api(`/api/projects/${projectId}/content`)
+    api(`/api/projects/${projectId}/content`),
+    api(`/api/projects/${projectId}/media`)
   ]);
   state.selectedProject = project;
   state.backups = backups;
   state.builds = builds;
   state.content = contentResponse.content;
+  state.media = mediaResponse.assets || [];
   state.selectedPageKey ||= Object.keys(state.content.pages)[0];
   upsertProject(project);
   renderProjects();
@@ -185,7 +205,11 @@ async function saveConfig(event) {
     branding: {
       primaryColor: text(form, "branding.primaryColor"),
       accentColor: text(form, "branding.accentColor"),
-      darkMode: form.get("branding.darkMode") === "on"
+      darkMode: form.get("branding.darkMode") === "on",
+      logoUrl: text(form, "branding.logoUrl"),
+      logoAssetId: text(form, "branding.logoAssetId"),
+      faviconUrl: text(form, "branding.faviconUrl"),
+      faviconAssetId: text(form, "branding.faviconAssetId")
     },
     template: {
       selected: text(form, "template.selected"),
@@ -462,6 +486,230 @@ async function deleteSection() {
   }
 }
 
+async function uploadMedia(event) {
+  event.preventDefault();
+  if (!state.selectedProject) return;
+  const form = new FormData(els.mediaUploadForm);
+  const file = form.get("file");
+  const kind = text(form, "kind") || "image";
+  if (!file || !file.size) return showMediaError("Choose an image file first.");
+
+  const body = new FormData();
+  body.append("file", file);
+  try {
+    clearMediaError();
+    setLoading(true, "Uploading media...");
+    const { assets } = await api(`/api/projects/${state.selectedProject.id}/media?kind=${encodeURIComponent(kind)}`, { method: "POST", rawBody: body });
+    state.media = assets;
+    els.mediaUploadForm.reset();
+    renderMediaLibrary();
+    showNotice("Media uploaded with validation and backup.");
+  } catch (error) {
+    showMediaError(error.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
+function handleMediaGridClick(event) {
+  const button = event.target.closest("button[data-media-action]");
+  if (!button) return;
+  const assetId = button.closest("[data-asset-id]")?.dataset.assetId;
+  const action = button.dataset.mediaAction;
+  if (!assetId) return;
+  if (action === "delete") deleteMedia(assetId);
+}
+
+async function deleteMedia(assetId, force = false) {
+  if (!state.selectedProject) return;
+  if (!force && !window.confirm("Delete this media asset?")) return;
+  try {
+    clearMediaError();
+    setLoading(true, "Deleting media...");
+    await api(`/api/projects/${state.selectedProject.id}/media/${assetId}${force ? "?force=true" : ""}`, { method: "DELETE" });
+    const { assets } = await api(`/api/projects/${state.selectedProject.id}/media`);
+    state.media = assets;
+    renderMediaLibrary();
+    showNotice("Media asset deleted.");
+  } catch (error) {
+    if (error.message?.includes("in use") && !force) {
+      if (window.confirm(`${error.message}\n\nDelete anyway?`)) await deleteMedia(assetId, true);
+      return;
+    }
+    showMediaError(error.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
+function renderMediaLibrary() {
+  els.mediaUploadButton.disabled = !state.selectedProject;
+  if (!state.selectedProject) {
+    els.mediaGrid.innerHTML = `<p class="empty">Select a project to manage its media library.</p>`;
+    return;
+  }
+  if (!state.media.length) {
+    els.mediaGrid.innerHTML = `<p class="empty">No media uploaded yet.</p>`;
+    return;
+  }
+  els.mediaGrid.innerHTML = state.media.map((asset) => mediaCardMarkup(asset, { showDelete: true })).join("");
+}
+
+function mediaCardMarkup(asset, { showDelete = false, selectable = false } = {}) {
+  const preview = isImageKind(asset) ? `<img src="${escapeHtml(asset.url)}" alt="${escapeHtml(asset.originalName || "")}" loading="lazy" />` : escapeHtml(asset.extension || "");
+  const actions = [];
+  if (selectable) actions.push(`<button type="button" data-media-action="select">Select</button>`);
+  if (showDelete) actions.push(`<button type="button" data-media-action="delete">Delete</button>`);
+  return `<article class="media-card" data-asset-id="${escapeHtml(asset.assetId)}">
+    <div class="media-card-thumb">${preview}</div>
+    <h4>${escapeHtml(asset.originalName || asset.storedName)}</h4>
+    <p>${escapeHtml(asset.kind)} · ${escapeHtml(formatBytesShort(asset.sizeBytes))}</p>
+    <p>${escapeHtml(asset.validation?.status || "unknown")} · ${formatDate(asset.uploadedAt)}</p>
+    <div class="media-card-actions">${actions.join("")}</div>
+  </article>`;
+}
+
+function isImageKind(asset) {
+  return /^(png|jpg|jpeg|webp|svg|ico)$/i.test(asset.extension || "") || /^image\//.test(asset.mimeType || "");
+}
+
+function formatBytesShort(bytes) {
+  const value = Number(bytes) || 0;
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function showMediaError(message) {
+  els.mediaError.hidden = false;
+  els.mediaError.textContent = message;
+}
+
+function clearMediaError() {
+  els.mediaError.hidden = true;
+  els.mediaError.textContent = "";
+}
+
+function openAssetPicker(onSelect) {
+  if (!state.selectedProject) return showNotice("Select a project first.");
+  state.assetPicker.onSelect = onSelect;
+  renderAssetPickerGrid();
+  if (typeof els.assetPickerDialog.showModal === "function") els.assetPickerDialog.showModal();
+  else els.assetPickerDialog.setAttribute("open", "");
+}
+
+function closeAssetPicker() {
+  state.assetPicker.onSelect = null;
+  if (typeof els.assetPickerDialog.close === "function") els.assetPickerDialog.close();
+  else els.assetPickerDialog.removeAttribute("open");
+}
+
+function renderAssetPickerGrid() {
+  const images = state.media.filter(isImageKind);
+  els.assetPickerEmpty.hidden = Boolean(images.length);
+  els.assetPickerGrid.innerHTML = images.map((asset) => mediaCardMarkup(asset, { selectable: true })).join("");
+}
+
+function handleAssetPickerClick(event) {
+  const button = event.target.closest("button[data-media-action='select']");
+  if (!button) return;
+  const assetId = button.closest("[data-asset-id]")?.dataset.assetId;
+  const asset = state.media.find((item) => item.assetId === assetId);
+  if (!asset) return;
+  const callback = state.assetPicker.onSelect;
+  closeAssetPicker();
+  if (typeof callback === "function") callback(asset);
+}
+
+function handleBrandingMediaFieldClick(event) {
+  const button = event.target.closest("[data-media-action]");
+  if (!button) return;
+  const field = button.closest("[data-media-field]");
+  if (!field) return;
+  event.preventDefault();
+  const action = button.dataset.mediaAction;
+  const kind = field.dataset.mediaKind;
+  const urlInput = field.querySelector("[data-media-url]");
+  const assetIdInput = field.querySelector("[data-media-asset-id]");
+  const preview = field.querySelector(".media-field-preview");
+
+  if (action === "clear") {
+    urlInput.value = "";
+    assetIdInput.value = "";
+    updateMediaFieldPreview(field);
+    markBrandingDirty();
+    return;
+  }
+
+  if (action === "choose") {
+    openAssetPicker((asset) => {
+      urlInput.value = asset.url;
+      assetIdInput.value = asset.assetId;
+      updateMediaFieldPreview(field);
+      markBrandingDirty();
+      showNotice(`${kind === "favicon" ? "Favicon" : "Logo"} selected from media library. Save config to apply.`);
+    });
+    return;
+  }
+
+  if (action === "upload") {
+    triggerMediaUploadThenAssign(kind, field);
+  }
+}
+
+function triggerMediaUploadThenAssign(kind, field) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/png,image/jpeg,image/webp,image/svg+xml,image/x-icon,.ico";
+  input.addEventListener("change", async () => {
+    const file = input.files?.[0];
+    if (!file || !state.selectedProject) return;
+    const body = new FormData();
+    body.append("file", file);
+    try {
+      clearMediaError();
+      setLoading(true, "Uploading media...");
+      const { asset, assets } = await api(`/api/projects/${state.selectedProject.id}/media?kind=${encodeURIComponent(kind)}`, { method: "POST", rawBody: body });
+      state.media = assets;
+      renderMediaLibrary();
+      const urlInput = field.querySelector("[data-media-url]");
+      const assetIdInput = field.querySelector("[data-media-asset-id]");
+      urlInput.value = asset.url;
+      assetIdInput.value = asset.assetId;
+      updateMediaFieldPreview(field);
+      markBrandingDirty();
+      showNotice(`${kind === "favicon" ? "Favicon" : "Logo"} uploaded and selected. Save config to apply.`);
+    } catch (error) {
+      showMediaError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  });
+  input.click();
+}
+
+function renderBrandingMediaFields() {
+  els.configForm.querySelectorAll("[data-media-field]").forEach((field) => updateMediaFieldPreview(field));
+}
+
+function updateMediaFieldPreview(field) {
+  const urlInput = field.querySelector("[data-media-url]");
+  const preview = field.querySelector(".media-field-preview");
+  const url = urlInput?.value || "";
+  if (!preview) return;
+  if (url) {
+    preview.src = url;
+    preview.hidden = false;
+  } else {
+    preview.removeAttribute("src");
+    preview.hidden = true;
+  }
+}
+
+function markBrandingDirty() {
+  els.saveConfigButton.disabled = !state.selectedProject;
+}
+
 function renderProjects() {
   els.projectCount.textContent = state.projects.length;
   if (!state.projects.length) {
@@ -519,11 +767,18 @@ function renderDetail() {
   setField("seo.description", config.seo.description);
   els.configForm.elements["branding.darkMode"].checked = Boolean(config.branding.darkMode);
 
+  setField("branding.logoUrl", config.branding.logoUrl);
+  setField("branding.logoAssetId", config.branding.logoAssetId);
+  setField("branding.faviconUrl", config.branding.faviconUrl);
+  setField("branding.faviconAssetId", config.branding.faviconAssetId);
+  renderBrandingMediaFields();
+
   renderPages(config.pages || []);
   renderTemplates(config.template.selected);
   renderAgents(project.agents);
   renderBackups();
   renderBuilds();
+  renderMediaLibrary();
   renderContentEditor();
 }
 
@@ -533,8 +788,11 @@ function renderEmptyDetail() {
   els.uploadLogoButton.disabled = true;
   els.createBackupButton.disabled = true;
   els.buildButton.disabled = true;
+  state.media = [];
   renderPages([]);
   renderAgents();
+  renderMediaLibrary();
+  renderBrandingMediaFields();
   els.backupList.innerHTML = `<p class="empty">No project selected.</p>`;
   els.buildList.innerHTML = `<p class="empty">No project selected.</p>`;
   els.buildSummary.innerHTML = `<p class="empty">No build yet.</p>`;
@@ -768,7 +1026,17 @@ function renderField(field, value) {
   if (field.kind === "textarea") return renderTextarea(field.name, field.label, value || "");
   if (field.kind === "checkbox") return renderCheckbox(field.name, field.label, Boolean(value));
   if (field.kind === "select") return renderSelect(field.name, field.label, field.options, value || field.options[0]);
+  if (field.kind === "image") return renderImageField(`data-field="${escapeHtml(field.name)}"`, field.label, value || "");
   return renderTextInput(field.name, field.label, value || "");
+}
+
+function renderImageField(attr, label, value = "") {
+  return `<label>${escapeHtml(label)}
+    <span class="image-field-row">
+      <input ${attr} value="${escapeHtml(value)}" />
+      <button type="button" data-image-picker-trigger>Choose from media</button>
+    </span>
+  </label>`;
 }
 
 function renderTextInput(name, label, value = "") {
@@ -820,10 +1088,24 @@ function renderArrayField(arrayName, index, field, value) {
   if (field.kind === "textarea") return `<label>${escapeHtml(field.label)} <textarea ${attr} rows="3">${escapeHtml(value || "")}</textarea></label>`;
   if (field.kind === "checkbox") return `<label class="toggle-row"><input ${attr} type="checkbox" ${value ? "checked" : ""} /> ${escapeHtml(field.label)}</label>`;
   if (field.kind === "select") return `<label>${escapeHtml(field.label)} <select ${attr}>${field.options.map((option) => `<option value="${escapeHtml(option)}" ${option === value ? "selected" : ""}>${escapeHtml(option)}</option>`).join("")}</select></label>`;
+  if (field.kind === "image") return renderImageField(attr, field.label, value || "");
   return `<label>${escapeHtml(field.label)} <input ${attr} value="${escapeHtml(value || "")}" /></label>`;
 }
 
 function handleSectionFieldClick(event) {
+  const pickerButton = event.target.closest("[data-image-picker-trigger]");
+  if (pickerButton) {
+    event.preventDefault();
+    const input = pickerButton.closest("label")?.querySelector("input[data-field], input[data-array-field]");
+    if (!input) return;
+    openAssetPicker((asset) => {
+      input.value = asset.url;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    return;
+  }
+
   const button = event.target.closest("[data-array-action]");
   if (!button) return;
   const arrayName = button.dataset.array;
@@ -938,9 +1220,10 @@ function getSectionEditorSchema(sectionType) {
   const area = (name, label) => ({ name, label, kind: "textarea" });
   const checkbox = (name, label) => ({ name, label, kind: "checkbox" });
   const select = (name, label, options) => ({ name, label, kind: "select", options });
+  const image = (name, label) => ({ name, label, kind: "image" });
   const schemas = {
     hero: {
-      fields: [textField("eyebrow", "Eyebrow"), textField("heading", "Heading"), textField("subheading", "Subheading"), area("body", "Body"), textField("primaryButtonText", "Primary button text"), textField("primaryButtonUrl", "Primary button URL"), textField("secondaryButtonText", "Secondary button text"), textField("secondaryButtonUrl", "Secondary button URL"), textField("imageUrl", "Image URL")],
+      fields: [textField("eyebrow", "Eyebrow"), textField("heading", "Heading"), textField("subheading", "Subheading"), area("body", "Body"), textField("primaryButtonText", "Primary button text"), textField("primaryButtonUrl", "Primary button URL"), textField("secondaryButtonText", "Secondary button text"), textField("secondaryButtonUrl", "Secondary button URL"), image("imageUrl", "Image URL")],
       arrays: []
     },
     services: {
@@ -957,11 +1240,11 @@ function getSectionEditorSchema(sectionType) {
     },
     projects: {
       fields: [textField("heading", "Heading")],
-      arrays: [{ name: "items", label: "Project Items", itemLabel: "Project", fields: [textField("title", "Title"), area("description", "Description"), textField("imageUrl", "Image URL"), textField("linkUrl", "Link URL")] }]
+      arrays: [{ name: "items", label: "Project Items", itemLabel: "Project", fields: [textField("title", "Title"), area("description", "Description"), image("imageUrl", "Image URL"), textField("linkUrl", "Link URL")] }]
     },
     gallery: {
       fields: [textField("heading", "Heading")],
-      arrays: [{ name: "images", label: "Images", itemLabel: "Image", fields: [textField("imageUrl", "Image URL"), textField("alt", "Alt text")] }]
+      arrays: [{ name: "images", label: "Images", itemLabel: "Image", fields: [image("imageUrl", "Image URL"), textField("alt", "Alt text")] }]
     },
     testimonials: {
       fields: [textField("heading", "Heading")],
