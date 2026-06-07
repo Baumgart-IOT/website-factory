@@ -89,7 +89,7 @@ function renderServices(_page, config, _template, section) {
     <h2>${escapeHtml(first(content.heading, `Clear offers for ${industry}`))}</h2>
     <p class="lead">${escapeHtml(first(content.subheading, "Focused services shaped around visitor intent and business goals."))}</p>
     <div class="grid">
-      ${items.map((item) => card(item.title || item.icon || "Service", item.description || "Describe this service in the content editor.")).join("")}
+      ${items.map((item) => card(item.title || item.icon || "Service", item.description || "Describe this service in the content editor.", item.icon)).join("")}
     </div>
   </div>
 </section>`;
@@ -138,7 +138,7 @@ function renderProjects(_page, config, _template, section) {
     <p class="eyebrow">Projects</p>
     <h2>${escapeHtml(first(content.heading, "Proof placeholders ready for real work"))}</h2>
     <div class="grid">
-      ${items.map((item) => card(item.title || "Project", item.description || "Add project detail in the content editor.")).join("")}
+      ${items.map((item) => projectCard(item)).join("")}
     </div>
   </div>
 </section>`;
@@ -159,7 +159,7 @@ function renderGallery(_page, _config, _template, section) {
 }
 
 function renderTestimonials(_page, config, _template, section) {
-  if (!config.features?.testimonials) return "";
+  if (!section && !config.features?.testimonials) return "";
   const content = section?.content || {};
   const items = Array.isArray(content.items) && content.items.length ? content.items : [
     { quote: `${config.business.name} made the next step clear and easy to trust.`, name: "Client perspective", role: "" },
@@ -177,7 +177,7 @@ function renderTestimonials(_page, config, _template, section) {
 }
 
 function renderFaq(_page, config, _template, section) {
-  if (!config.features?.faq) return "";
+  if (!section && !config.features?.faq) return "";
   const content = section?.content || {};
   const items = Array.isArray(content.items) && content.items.length ? content.items : [
     { question: "Who is this for?", answer: `Organizations looking for ${config.business.industry || "professional"} support.` },
@@ -196,7 +196,7 @@ function renderFaq(_page, config, _template, section) {
 }
 
 function renderContact(_page, config, _template, section) {
-  if (!config.features?.contactForm) return "";
+  if (!section && !config.features?.contactForm) return "";
   const content = section?.content || {};
   return `<section class="section" id="contact">
   <div class="section-inner">
@@ -209,7 +209,7 @@ function renderContact(_page, config, _template, section) {
 }
 
 function renderQuoteRequest(_page, config, _template, section) {
-  if (!config.features?.quoteRequest) return "";
+  if (!section && !config.features?.quoteRequest) return "";
   const content = section?.content || {};
   const fields = Array.isArray(content.fields) && content.fields.length ? content.fields : ["Name", "Email", "Project details"];
   return `<section class="section" id="quote-request">
@@ -217,7 +217,7 @@ function renderQuoteRequest(_page, config, _template, section) {
     <p class="eyebrow">Quote request</p>
     <h2>${escapeHtml(first(content.heading, "Request a focused estimate"))}</h2>
     <p>${escapeHtml(first(content.body, "This mock form is disabled until production form handling is added."))}</p>
-    ${fields.map((field) => `<input placeholder="${escapeHtml(field.label || field)}" disabled>`).join("")}
+    ${fields.map((field) => renderQuoteField(field)).join("")}
   </div>
 </section>`;
 }
@@ -234,8 +234,24 @@ function renderCta(page, config, _template, section) {
 </section>`;
 }
 
-function card(title, body) {
-  return `<article class="card"><h3>${escapeHtml(title)}</h3><p>${escapeHtml(body)}</p></article>`;
+function card(title, body, eyebrow = "") {
+  return `<article class="card">${eyebrow ? `<p class="eyebrow">${escapeHtml(eyebrow)}</p>` : ""}<h3>${escapeHtml(title)}</h3><p>${escapeHtml(body)}</p></article>`;
+}
+
+function projectCard(item) {
+  const image = item.imageUrl ? `<img class="card-image" src="${escapeHtml(item.imageUrl)}" alt="" loading="lazy">` : "";
+  const link = item.linkUrl ? `<p><a href="${escapeHtml(item.linkUrl)}">View project</a></p>` : "";
+  return `<article class="card">${image}<h3>${escapeHtml(item.title || "Project")}</h3><p>${escapeHtml(item.description || "Add project detail in the content editor.")}</p>${link}</article>`;
+}
+
+function renderQuoteField(field) {
+  const normalized = typeof field === "string" ? { label: field, type: "text", required: false } : field || {};
+  const label = normalized.required ? `${normalized.label || "Field"} *` : normalized.label || "Field";
+  if (normalized.type === "textarea") return `<textarea rows="4" placeholder="${escapeHtml(label)}" disabled></textarea>`;
+  if (normalized.type === "select") return `<select disabled><option>${escapeHtml(label)}</option></select>`;
+  if (normalized.type === "checkbox") return `<label class="quote-checkbox"><input type="checkbox" disabled> ${escapeHtml(label)}</label>`;
+  const inputType = normalized.type === "email" ? "email" : normalized.type === "phone" ? "tel" : "text";
+  return `<input type="${inputType}" placeholder="${escapeHtml(label)}" disabled>`;
 }
 
 function linkFor(currentPage, targetPage) {
