@@ -3,7 +3,10 @@ const state = {
   projects: [],
   selectedProject: null,
   backups: [],
-  builds: []
+  builds: [],
+  content: null,
+  selectedPageKey: null,
+  selectedSectionId: null
 };
 
 const els = {
@@ -22,6 +25,21 @@ const els = {
   backupList: document.querySelector("#backupList"),
   buildList: document.querySelector("#buildList"),
   buildSummary: document.querySelector("#buildSummary"),
+  contentPageSelect: document.querySelector("#contentPageSelect"),
+  initializeContentButton: document.querySelector("#initializeContentButton"),
+  pageForm: document.querySelector("#pageForm"),
+  savePageButton: document.querySelector("#savePageButton"),
+  deletePageButton: document.querySelector("#deletePageButton"),
+  addPageForm: document.querySelector("#addPageForm"),
+  addPageButton: document.querySelector("#addPageButton"),
+  sectionSelect: document.querySelector("#sectionSelect"),
+  sectionTypeSelect: document.querySelector("#sectionTypeSelect"),
+  sectionForm: document.querySelector("#sectionForm"),
+  saveSectionButton: document.querySelector("#saveSectionButton"),
+  addSectionButton: document.querySelector("#addSectionButton"),
+  moveSectionUpButton: document.querySelector("#moveSectionUpButton"),
+  moveSectionDownButton: document.querySelector("#moveSectionDownButton"),
+  deleteSectionButton: document.querySelector("#deleteSectionButton"),
   saveConfigButton: document.querySelector("#saveConfigButton"),
   uploadLogoButton: document.querySelector("#uploadLogoButton"),
   createBackupButton: document.querySelector("#createBackupButton"),
@@ -40,6 +58,24 @@ function bindEvents() {
   els.createForm.addEventListener("submit", createProject);
   els.configForm.addEventListener("submit", saveConfig);
   els.logoForm.addEventListener("submit", uploadLogo);
+  els.initializeContentButton.addEventListener("click", initializeContent);
+  els.contentPageSelect.addEventListener("change", () => {
+    state.selectedPageKey = els.contentPageSelect.value;
+    state.selectedSectionId = null;
+    renderContentEditor();
+  });
+  els.pageForm.addEventListener("submit", savePage);
+  els.deletePageButton.addEventListener("click", deletePage);
+  els.addPageForm.addEventListener("submit", addPage);
+  els.sectionSelect.addEventListener("change", () => {
+    state.selectedSectionId = els.sectionSelect.value;
+    renderSectionEditor();
+  });
+  els.sectionForm.addEventListener("submit", saveSection);
+  els.addSectionButton.addEventListener("click", addSection);
+  els.moveSectionUpButton.addEventListener("click", () => moveSection("up"));
+  els.moveSectionDownButton.addEventListener("click", () => moveSection("down"));
+  els.deleteSectionButton.addEventListener("click", deleteSection);
   els.createBackupButton.addEventListener("click", createBackup);
   els.buildButton.addEventListener("click", buildPreview);
   els.refreshButton.addEventListener("click", refreshAll);
@@ -79,14 +115,17 @@ async function createProject(event) {
 }
 
 async function openProject(projectId) {
-  const [{ project }, { backups }, { builds }] = await Promise.all([
+  const [{ project }, { backups }, { builds }, contentResponse] = await Promise.all([
     api(`/api/projects/${projectId}`),
     api(`/api/projects/${projectId}/backups`),
-    api(`/api/projects/${projectId}/builds`)
+    api(`/api/projects/${projectId}/builds`),
+    api(`/api/projects/${projectId}/content`)
   ]);
   state.selectedProject = project;
   state.backups = backups;
   state.builds = builds;
+  state.content = contentResponse.content;
+  state.selectedPageKey ||= Object.keys(state.content.pages)[0];
   upsertProject(project);
   renderProjects();
   renderDetail();
@@ -205,6 +244,153 @@ async function buildPreview() {
   }
 }
 
+async function initializeContent() {
+  if (!state.selectedProject) return;
+  try {
+    const { project, content } = await api(`/api/projects/${state.selectedProject.id}/content/initialize`, { method: "POST" });
+    state.selectedProject = project;
+    state.content = content;
+    state.selectedPageKey = "home";
+    state.selectedSectionId = null;
+    renderContentEditor();
+    showNotice("Content initialized from project config.");
+  } catch (error) {
+    showNotice(error.message);
+  }
+}
+
+async function addPage(event) {
+  event.preventDefault();
+  if (!state.selectedProject) return;
+  const title = text(new FormData(els.addPageForm), "title");
+  if (!title) return showNotice("Add a page title first.");
+  try {
+    const { content, pageKey } = await api(`/api/projects/${state.selectedProject.id}/content/pages`, {
+      method: "POST",
+      body: { title }
+    });
+    state.content = content;
+    state.selectedPageKey = pageKey;
+    state.selectedSectionId = null;
+    els.addPageForm.reset();
+    renderContentEditor();
+    showNotice("Page added.");
+  } catch (error) {
+    showNotice(error.message);
+  }
+}
+
+async function savePage(event) {
+  event.preventDefault();
+  if (!state.selectedProject || !state.selectedPageKey) return;
+  const form = new FormData(els.pageForm);
+  try {
+    const { content } = await api(`/api/projects/${state.selectedProject.id}/content/pages/${state.selectedPageKey}`, {
+      method: "PATCH",
+      body: {
+        title: text(form, "page.title"),
+        slug: text(form, "page.slug"),
+        seo: {
+          title: text(form, "page.seo.title"),
+          description: text(form, "page.seo.description")
+        }
+      }
+    });
+    state.content = content;
+    renderContentEditor();
+    showNotice("Page metadata saved.");
+  } catch (error) {
+    showNotice(error.message);
+  }
+}
+
+async function deletePage() {
+  if (!state.selectedProject || !state.selectedPageKey) return;
+  try {
+    const { content } = await api(`/api/projects/${state.selectedProject.id}/content/pages/${state.selectedPageKey}`, { method: "DELETE" });
+    state.content = content;
+    state.selectedPageKey = Object.keys(content.pages)[0];
+    state.selectedSectionId = null;
+    renderContentEditor();
+    showNotice("Page deleted.");
+  } catch (error) {
+    showNotice(error.message);
+  }
+}
+
+async function addSection() {
+  if (!state.selectedProject || !state.selectedPageKey) return;
+  const type = els.sectionTypeSelect.value || "hero";
+  try {
+    const { content, section } = await api(`/api/projects/${state.selectedProject.id}/content/pages/${state.selectedPageKey}/sections`, {
+      method: "POST",
+      body: { type, content: defaultSectionContent(type) }
+    });
+    state.content = content;
+    state.selectedSectionId = section.id;
+    renderContentEditor();
+    showNotice("Section added.");
+  } catch (error) {
+    showNotice(error.message);
+  }
+}
+
+async function saveSection(event) {
+  event.preventDefault();
+  if (!state.selectedProject || !state.selectedPageKey || !state.selectedSectionId) return;
+  const form = new FormData(els.sectionForm);
+  let content;
+  try {
+    content = JSON.parse(text(form, "section.content") || "{}");
+  } catch {
+    return showNotice("Section content must be valid JSON.");
+  }
+  try {
+    const { content: updated } = await api(`/api/projects/${state.selectedProject.id}/content/pages/${state.selectedPageKey}/sections/${state.selectedSectionId}`, {
+      method: "PATCH",
+      body: {
+        type: text(form, "section.type"),
+        enabled: form.get("section.enabled") === "on",
+        order: Number(text(form, "section.order")),
+        content
+      }
+    });
+    state.content = updated;
+    renderContentEditor();
+    showNotice("Section saved.");
+  } catch (error) {
+    showNotice(error.message);
+  }
+}
+
+async function moveSection(direction) {
+  if (!state.selectedProject || !state.selectedPageKey || !state.selectedSectionId) return;
+  try {
+    const { content } = await api(`/api/projects/${state.selectedProject.id}/content/pages/${state.selectedPageKey}/sections/${state.selectedSectionId}/move`, {
+      method: "POST",
+      body: { direction }
+    });
+    state.content = content;
+    renderContentEditor();
+    showNotice(`Section moved ${direction}.`);
+  } catch (error) {
+    showNotice(error.message);
+  }
+}
+
+async function deleteSection() {
+  if (!state.selectedProject || !state.selectedPageKey || !state.selectedSectionId) return;
+  try {
+    const { content } = await api(`/api/projects/${state.selectedProject.id}/content/pages/${state.selectedPageKey}/sections/${state.selectedSectionId}`, { method: "DELETE" });
+    state.content = content;
+    state.selectedSectionId = null;
+    renderContentEditor();
+    showNotice("Section deleted.");
+  } catch (error) {
+    showNotice(error.message);
+  }
+}
+
 function renderProjects() {
   els.projectCount.textContent = state.projects.length;
   if (!state.projects.length) {
@@ -264,6 +450,7 @@ function renderDetail() {
   renderAgents(project.agents);
   renderBackups();
   renderBuilds();
+  renderContentEditor();
 }
 
 function renderEmptyDetail() {
@@ -277,6 +464,7 @@ function renderEmptyDetail() {
   els.backupList.innerHTML = `<p class="empty">No project selected.</p>`;
   els.buildList.innerHTML = `<p class="empty">No project selected.</p>`;
   els.buildSummary.innerHTML = `<p class="empty">No build yet.</p>`;
+  renderContentEditor();
 }
 
 function renderTemplateOptions() {
@@ -378,6 +566,71 @@ function renderBuilds() {
   `).join("") : `<p class="empty">No builds yet.</p>`;
 }
 
+function renderContentEditor() {
+  const enabled = Boolean(state.selectedProject && state.content);
+  [
+    els.initializeContentButton,
+    els.savePageButton,
+    els.deletePageButton,
+    els.addPageButton,
+    els.saveSectionButton,
+    els.addSectionButton,
+    els.moveSectionUpButton,
+    els.moveSectionDownButton,
+    els.deleteSectionButton
+  ].forEach((button) => { button.disabled = !enabled; });
+
+  els.sectionTypeSelect.innerHTML = supportedSectionTypes().map((type) => `<option value="${type}">${type}</option>`).join("");
+
+  if (!enabled) {
+    els.contentPageSelect.innerHTML = "";
+    els.sectionSelect.innerHTML = "";
+    els.pageForm.reset();
+    els.sectionForm.reset();
+    return;
+  }
+
+  const entries = Object.entries(state.content.pages);
+  if (!state.selectedPageKey || !state.content.pages[state.selectedPageKey]) state.selectedPageKey = entries[0]?.[0] || null;
+  els.contentPageSelect.innerHTML = entries.map(([key, page]) => `<option value="${escapeHtml(key)}" ${key === state.selectedPageKey ? "selected" : ""}>${escapeHtml(page.title)}</option>`).join("");
+
+  const page = state.content.pages[state.selectedPageKey];
+  if (!page) return;
+  setPageField("page.title", page.title);
+  setPageField("page.slug", page.slug);
+  setPageField("page.seo.title", page.seo?.title || "");
+  setPageField("page.seo.description", page.seo?.description || "");
+  els.deletePageButton.disabled = !enabled || state.selectedPageKey === "home" || entries.length <= 1;
+
+  renderSectionEditor();
+}
+
+function renderSectionEditor() {
+  const page = state.content?.pages?.[state.selectedPageKey];
+  const sections = page?.sections || [];
+  if (!state.selectedSectionId || !sections.some((section) => section.id === state.selectedSectionId)) {
+    state.selectedSectionId = sections[0]?.id || null;
+  }
+
+  els.sectionSelect.innerHTML = sections.map((section) => `<option value="${escapeHtml(section.id)}" ${section.id === state.selectedSectionId ? "selected" : ""}>${escapeHtml(section.order)}. ${escapeHtml(section.type)} ${section.enabled ? "" : "(disabled)"}</option>`).join("");
+
+  const section = sections.find((item) => item.id === state.selectedSectionId);
+  const hasSection = Boolean(section);
+  els.saveSectionButton.disabled = !hasSection;
+  els.moveSectionUpButton.disabled = !hasSection;
+  els.moveSectionDownButton.disabled = !hasSection;
+  els.deleteSectionButton.disabled = !hasSection;
+  if (!section) {
+    els.sectionForm.reset();
+    return;
+  }
+
+  els.sectionTypeSelect.value = section.type;
+  els.sectionForm.elements["section.order"].value = section.order;
+  els.sectionForm.elements["section.enabled"].checked = section.enabled;
+  els.sectionForm.elements["section.content"].value = JSON.stringify(section.content || {}, null, 2);
+}
+
 function upsertProject(project) {
   const index = state.projects.findIndex((item) => item.id === project.id);
   if (index >= 0) state.projects[index] = project;
@@ -400,6 +653,11 @@ async function api(path, options = {}) {
 
 function setField(name, value) {
   const field = els.configForm.elements[name];
+  if (field) field.value = value || "";
+}
+
+function setPageField(name, value) {
+  const field = els.pageForm.elements[name];
   if (field) field.value = value || "";
 }
 
@@ -430,4 +688,34 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function supportedSectionTypes() {
+  return ["hero", "services", "about", "process", "projects", "gallery", "testimonials", "faq", "contact", "quote_request", "cta"];
+}
+
+function defaultSectionContent(type) {
+  return {
+    hero: {
+      eyebrow: "Featured",
+      heading: "New hero heading",
+      subheading: "A short supporting message.",
+      body: "",
+      primaryButtonText: "Start",
+      primaryButtonUrl: "/contact",
+      secondaryButtonText: "Learn more",
+      secondaryButtonUrl: "/services",
+      imageUrl: ""
+    },
+    services: { heading: "Services", subheading: "", items: [{ title: "Service", description: "Describe this service.", icon: "" }] },
+    about: { heading: "About", body: "Add background and positioning.", highlights: ["Clear positioning"] },
+    process: { heading: "Process", steps: [{ title: "Step one", description: "Describe the first step." }] },
+    projects: { heading: "Projects", items: [{ title: "Project", description: "Describe this project.", imageUrl: "" }] },
+    gallery: { heading: "Gallery", images: [{ imageUrl: "", alt: "" }] },
+    testimonials: { heading: "Testimonials", items: [{ quote: "Add a quote.", name: "Client", role: "" }] },
+    faq: { heading: "FAQ", items: [{ question: "Question?", answer: "Answer." }] },
+    contact: { heading: "Contact", body: "", email: "", phone: "", address: "" },
+    quote_request: { heading: "Request a quote", body: "", fields: ["Name", "Email", "Project details"] },
+    cta: { heading: "Call to action", body: "", buttonText: "Contact us", buttonUrl: "/contact" }
+  }[type] || {};
 }

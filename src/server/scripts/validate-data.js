@@ -1,6 +1,7 @@
 import { listTemplates } from "../services/templateService.js";
 import { readProjects } from "../storage/jsonStore.js";
 import { normalizeProjectConfig } from "../validation/configValidation.js";
+import { normalizeProjectContent } from "../services/contentService.js";
 
 const templates = await listTemplates();
 const templateIds = new Set(templates.map((template) => template.id));
@@ -12,6 +13,7 @@ for (const project of projects) {
   if (!project.id || !config.business?.name || !templateIds.has(templateId)) {
     throw new Error(`Invalid project config: ${project.id || "unknown"}`);
   }
+  normalizeProjectContent(project);
 }
 
 console.log(`Validated ${templates.length} templates and ${projects.length} project configs.`);
